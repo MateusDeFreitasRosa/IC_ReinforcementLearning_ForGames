@@ -55,12 +55,13 @@ class Agent():
         self.frame_width        = frame_width
         self.brain              = self._build_model()
 
+
     def _build_model(self):
         # Neural Net for Deep-Q learning Model
         model = Sequential()
             
         #Criar camada de convolução.
-        model.add(Conv2D(32, (8,8), strides=4,  input_shape = (self.frame_height, self.frame_width,1) , activation = 'relu', padding='same'))
+        model.add(Conv2D(32, (8,8), strides=4,  input_shape = (self.frame_height, self.frame_width, self.k_frames) , activation = 'relu', padding='same'))
         model.add(MaxPooling2D(pool_size = (2,2), dim_ordering='th'))
         model.add(Conv2D(64, (4,4), strides=2, activation = 'relu', padding='same'))
         model.add(MaxPooling2D(pool_size = (2,2), dim_ordering='th'))
@@ -85,10 +86,22 @@ class Agent():
     def save_model(self):
             self.brain.save(self.weight_backup)
 
+    def get_last_k_frames(self, state):
+        frames = np.empty((self.k_frames, self.frame_height, self.frame_width))
+        
+        for i in range(1, 5):
+            state, _, _, _, _ = self.memory[len(self.memory)-i]
+            frames[i-1] = state
+        print(frames)
+        print(frames.shape)
+        input()
+        return np.transpose(frames, axes=(1,2,0))
+
     def act(self, state):
         if np.random.rand() <= self.exploration_rate:
             return random.randrange(self.action_size)
-        act_values = self.brain.predict(state)
+        k_frames_state = self.get_last_k_frames(state)
+        act_values = self.brain.predict(k_frames_state)
         return np.argmax(act_values[0])
 
     def remember(self, state, action, reward, next_state, done):        
@@ -100,10 +113,10 @@ class Agent():
         if len(self.memory) < self.k_frames+2:
             return
         
-        state = np.empty((self.k_frames, self.frame_height, self.frame_width,1))
+        state = np.empty((self.k_frames, self.frame_height, self.frame_width))
         action = np.empty(self.k_frames, dtype=np.uint8)
         reward = np.empty(self.k_frames, dtype=np.uint8)
-        next_state = np.empty((self.k_frames, self.frame_height, self.frame_width,1))
+        next_state = np.empty((self.k_frames, self.frame_height, self.frame_width))
         done = np.empty(self.k_frames, dtype=np.uint8)
         index = random.randint(0, len(self.memory)-self.k_frames-2)
         for i, idx_memory in enumerate(range(index, index+self.k_frames)):
@@ -119,7 +132,13 @@ class Agent():
             next_state[i] = n_s
             done[i] = d
         
-        return state, action, reward, next_state, done
+        print('State: {}'.format(state.shape))
+        print('Action: {}'.format(action.shape))
+        print('Reward: {}'.format(reward.shape))
+        print('Next_State: {}'.format(next_state.shape))
+        print('Done: {}'.format(done.shape))
+        input()
+        return np.transpose(state, axes=(1,2,0)), action, reward, np.transpose(next_state, axes=(1,2,0)), done
         
 
     def replay(self, sample_batch_size):
@@ -130,12 +149,12 @@ class Agent():
         #sample_batch = random.sample(self.memory, sample_batch_size)
         for i in range(sample_batch_size):
             state, action, reward, next_state, done = self.pack_K_frames()
-            #print('State: {}'.format(state.shape))
-            #print('Action: {}'.format(action.shape))
-            #print('Reward: {}'.format(reward.shape))
-            #print('Next_State: {}'.format(next_state.shape))
-            #print('Done: {}'.format(done.shape))
-            #input()
+            print('State: {}'.format(state.shape))
+            print('Action: {}'.format(action.shape))
+            print('Reward: {}'.format(reward.shape))
+            print('Next_State: {}'.format(next_state.shape))
+            print('Done: {}'.format(done.shape))
+            input()
             #target = reward
             predicted = self.brain.predict(next_state)
             #print('Predicted: {}'.format(predicted))
@@ -206,7 +225,7 @@ class Breakout():
                 total_reward=0
                 while not done:
                     #if i_episodes > 1000:
-                    self.env.render()
+                    #self.env.render()
                     
                     
                     action = self.agent.act(state)
@@ -250,3 +269,11 @@ if __name__ == '__main__':
     breakout = Breakout()
     breakout.run()      
     
+    
+    
+
+
+
+
+
+
