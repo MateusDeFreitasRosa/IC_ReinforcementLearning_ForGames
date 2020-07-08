@@ -45,7 +45,7 @@ class Agent():
         self.state_size         = state_size
         self.action_size        = action_size
         self.memory             = deque(maxlen=100000)
-        self.learning_rate      = 0.001
+        self.learning_rate      = 0.0001
         self.gamma              = 0.95
         self.exploration_rate   = 1.0
         self.exploration_min    = 0.01
@@ -61,18 +61,28 @@ class Agent():
         model = Sequential()
             
         #Criar camada de convolução.
+        #-> (32,84,84,4)
         model.add(Conv2D(32, (8,8), strides=4,  input_shape = (self.frame_height, self.frame_width, self.k_frames) , activation = 'relu', padding='same'))
-        model.add(MaxPooling2D(pool_size = (2,2), dim_ordering='th'))
+        #<- (84,84)
+        #->(84,84)
+        #model.add(MaxPooling2D(pool_size = (2,2), dim_ordering='th'))
+        #<-(42,42)
+        #->(42,42)
         model.add(Conv2D(64, (4,4), strides=2, activation = 'relu', padding='same'))
+        #<-(42,42)
+        #->(42,42)
         model.add(MaxPooling2D(pool_size = (2,2), dim_ordering='th'))
-        model.add(Conv2D(64, (3,3), strides=1, activation = 'relu', padding='same'))
+        #<-(21,21)
+        #->(21,21)
+        model.add(Conv2D(128, (3,3), strides=1, activation = 'relu', padding='same'))
         model.add(MaxPooling2D(pool_size = (2,2)))
+        #<-(11,11)
         #model.add(Conv2D(256, (3,3), activation = 'relu', padding='same'))
         #model.add(MaxPooling2D(pool_size = (2,2)))
         model.add(Flatten())
         
         #Criação da rede Neural.
-        model.add(Dense(512, activation='relu'))
+        model.add(Dense(121, activation='relu'))
         #model.add(Dropout(.5))
         #model.add(Dense(24, activation='relu'))
         model.add(Dense(self.action_size, activation='linear'))
@@ -92,15 +102,15 @@ class Agent():
         for i in range(1, 5):
             state, _, _, _, _ = self.memory[len(self.memory)-i]
             frames[i-1] = state
-        print(frames)
-        print(frames.shape)
-        input()
+      
+        
         return np.transpose(frames, axes=(1,2,0))
 
     def act(self, state):
-        if np.random.rand() <= self.exploration_rate:
+        if np.random.rand() <= self.exploration_rate or len(self.memory) < self.k_frames+2:
             return random.randrange(self.action_size)
         k_frames_state = self.get_last_k_frames(state)
+        k_frames_state = np.expand_dims(k_frames_state, axis=0)
         act_values = self.brain.predict(k_frames_state)
         return np.argmax(act_values[0])
 
@@ -108,37 +118,32 @@ class Agent():
         self.memory.append((state, action, reward, next_state, done))
 
     
-    def pack_K_frames(self):
+    def pack_K_frames(self, sample_batch_size):
         
         if len(self.memory) < self.k_frames+2:
             return
         
-        state = np.empty((self.k_frames, self.frame_height, self.frame_width))
-        action = np.empty(self.k_frames, dtype=np.uint8)
-        reward = np.empty(self.k_frames, dtype=np.uint8)
-        next_state = np.empty((self.k_frames, self.frame_height, self.frame_width))
-        done = np.empty(self.k_frames, dtype=np.uint8)
-        index = random.randint(0, len(self.memory)-self.k_frames-2)
-        for i, idx_memory in enumerate(range(index, index+self.k_frames)):
-            s, a, r, n_s, d = self.memory[idx_memory]
-            s = s[0,:,:,:]
-            n_s = n_s[0,:,:,:]
-            #print('State: {}'.format(s.shape))
-            #print('Next_State: {}'.format(n_s.shape))
-            #input()
-            state[i] = s
-            action[i] = a
-            reward[i] = r
-            next_state[i] = n_s
-            done[i] = d
+        state = np.empty((sample_batch_size, self.k_frames, self.frame_height, self.frame_width))
+        action = np.empty(sample_batch_size, dtype=np.uint8)
+        reward = np.empty(sample_batch_size, dtype=np.float32)
+        next_state = np.empty((sample_batch_size, self.k_frames, self.frame_height, self.frame_width))
+        done = np.empty(sample_batch_size, dtype=np.bool)
         
-        print('State: {}'.format(state.shape))
-        print('Action: {}'.format(action.shape))
-        print('Reward: {}'.format(reward.shape))
-        print('Next_State: {}'.format(next_state.shape))
-        print('Done: {}'.format(done.shape))
-        input()
-        return np.transpose(state, axes=(1,2,0)), action, reward, np.transpose(next_state, axes=(1,2,0)), done
+        for k in range(sample_batch_size):
+            index = random.randint(0, len(self.memory)-self.k_frames-2)
+            for i, idx_memory in enumerate(range(index, index+self.k_frames)):
+                s, a, r, n_s, d = self.memory[idx_memory]
+            
+                state[k][i] = s
+                next_state[k][i] = n_s
+                
+            done[k] = d
+            action[k] = a
+            reward[k] = r
+    
+    
+        #State = (32,4,84,84)  -> State Transpose = (32,84,84,4) 
+        return np.transpose(state, axes=(0,2,3,1)), action, reward, np.transpose(next_state, axes=(0,2,3,1)), done
         
 
     def replay(self, sample_batch_size):
@@ -147,25 +152,31 @@ class Agent():
             return
         
         #sample_batch = random.sample(self.memory, sample_batch_size)
+        state, action, reward, next_state, done = self.pack_K_frames(sample_batch_size)
+        
+        #print('State: {}'.format(state.shape))
+        #print('Action: {}'.format(action.shape))
+        #print('Reward: {}'.format(reward.shape))
+        #print('Next_State: {}'.format(next_state.shape))
+        #print('Done: {}'.format(done.shape))
+        #input()
+        #target = reward
+        predicted = self.brain.predict(next_state)
+        #print('Predicted: {}'.format(predicted))
+        #print('Predicted Max: {}'.format(np.amax(predicted)))
+        #input()
+        target = reward + (self.gamma * np.amax(predicted) * (1-done) )
+        target_f = self.brain.predict(state)
+        #print('Target_f: {}'.format(target_f))
         for i in range(sample_batch_size):
-            state, action, reward, next_state, done = self.pack_K_frames()
-            print('State: {}'.format(state.shape))
-            print('Action: {}'.format(action.shape))
-            print('Reward: {}'.format(reward.shape))
-            print('Next_State: {}'.format(next_state.shape))
-            print('Done: {}'.format(done.shape))
-            input()
-            #target = reward
-            predicted = self.brain.predict(next_state)
-            #print('Predicted: {}'.format(predicted))
-            #print('Predicted Max: {}'.format(np.amax(predicted)))
-            #input()
-            target = reward + (self.gamma * np.amax(predicted) * (1-done) )
-            target_f = self.brain.predict(state)
-            target_f[:][action] = target
-            self.brain.fit(state, target_f, epochs=1, verbose=0)
-            if self.exploration_rate > self.exploration_min:
-                self.exploration_rate *= self.exploration_decay
+            target_f[i][action] = target[0]
+        
+        #print('Target_f Formatado: {}'.format(target_f))
+        #input()    
+        
+        self.brain.fit(state, target_f, epochs=1, verbose=0)
+        if self.exploration_rate > self.exploration_min:
+            self.exploration_rate *= self.exploration_decay
 
 
 data_reward = []
@@ -182,8 +193,9 @@ class Breakout():
         self.number_print = 0
         self.best_score = 0
         self.replay_bestPlay = deque(maxlen=300)
-    
-
+        self.crop_on_top = 57
+        self.crop_on_bottom = 15
+        self.crop_on_border = 7
     
     def to_gray_scale(self, img):
         return np.mean(img, axis=2).astype(np.uint8)
@@ -197,6 +209,11 @@ class Breakout():
     def transform_reward(self, reward):
         return np.sign(reward)
     
+    def crop_img(self, img):
+        return img[self.crop_on_top: -self.crop_on_bottom, self.crop_on_border:-self.crop_on_border]
+        
+        
+        
     
     
     def smile_for_the_photo(self):
@@ -215,11 +232,9 @@ class Breakout():
         try:
             for i_episodes in range(self.episodes):
                 state = self.env.reset()
-                
+                state = self.crop_img(state)
                 state = self.resize(state)
-                state = np.expand_dims(state, axis=2)
-                state = np.expand_dims(state, axis=0)
-                
+            
                 done = False
                 index=0
                 total_reward=0
@@ -231,17 +246,18 @@ class Breakout():
                     action = self.agent.act(state)
                     
                     next_state, reward, done, info = self.env.step(action)
-                
+                    if (info['ale.lives'] < 0):
+                        done = True
+                        
+                    next_state = self.crop_img(next_state)
+                    
                     reward = np.sign(reward)
                     total_reward+=reward
-                    self.replay_bestPlay.append(next_state)
-                    if total_reward > 5:
-                        self.smile_for_the_photo()
+                    #self.replay_bestPlay.append(next_state)
+                    #if total_reward >= 5:
+                    #    self.smile_for_the_photo()
                         
                     next_state = self.resize(next_state)
-                        
-                    next_state = np.expand_dims(next_state, axis=2)
-                    next_state = np.expand_dims(next_state, axis=0)
                     
                     self.agent.remember(state, action, reward, next_state, done)
                     state = next_state
