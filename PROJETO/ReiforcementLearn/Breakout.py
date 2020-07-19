@@ -39,12 +39,14 @@ tfback._get_available_gpus = _get_available_gpus
 ######################################################################################################################################
 score = []
 
+TRAIN = False
+
 class Agent():
     def __init__(self, state_size, action_size, frame_height, frame_width):
         self.weight_backup      = "breakout_dataModel.h5"
         self.state_size         = state_size
         self.action_size        = action_size
-        self.memory             = deque(maxlen=100000)
+        self.memory             = deque(maxlen=100000) if TRAIN else deque(maxlen=5) 
         self.learning_rate      = 0.0001
         self.gamma              = 0.95
         self.exploration_rate   = 1.0
@@ -71,18 +73,18 @@ class Agent():
         model.add(Conv2D(64, (4,4), strides=2, activation = 'relu', padding='same'))
         #<-(42,42)
         #->(42,42)
-        model.add(MaxPooling2D(pool_size = (2,2), dim_ordering='th'))
+        #model.add(MaxPooling2D(pool_size = (2,2), dim_ordering='th'))
         #<-(21,21)
         #->(21,21)
         model.add(Conv2D(128, (3,3), strides=1, activation = 'relu', padding='same'))
-        model.add(MaxPooling2D(pool_size = (2,2)))
+        #model.add(MaxPooling2D(pool_size = (2,2)))
         #<-(11,11)
         #model.add(Conv2D(256, (3,3), activation = 'relu', padding='same'))
         #model.add(MaxPooling2D(pool_size = (2,2)))
         model.add(Flatten())
         
         #Criação da rede Neural.
-        model.add(Dense(121, activation='relu'))
+        model.add(Dense(528, activation='relu'))
         #model.add(Dropout(.5))
         #model.add(Dense(24, activation='relu'))
         model.add(Dense(self.action_size, activation='linear'))
@@ -98,16 +100,17 @@ class Agent():
 
     def get_last_k_frames(self, state):
         frames = np.empty((self.k_frames, self.frame_height, self.frame_width))
-        
+
         for i in range(1, 5):
             state, _, _, _, _ = self.memory[len(self.memory)-i]
             frames[i-1] = state
-      
-        
+          
         return np.transpose(frames, axes=(1,2,0))
 
     def act(self, state):
-        if np.random.rand() <= self.exploration_rate or len(self.memory) < self.k_frames+2:
+        if np.random.rand() <= self.exploration_rate:
+            return random.randrange(self.action_size)
+        if len(self.memory) < self.k_frames+1:
             return random.randrange(self.action_size)
         k_frames_state = self.get_last_k_frames(state)
         k_frames_state = np.expand_dims(k_frames_state, axis=0)
@@ -154,22 +157,28 @@ class Agent():
         #sample_batch = random.sample(self.memory, sample_batch_size)
         state, action, reward, next_state, done = self.pack_K_frames(sample_batch_size)
         
-        #print('State: {}'.format(state.shape))
-        #print('Action: {}'.format(action.shape))
-        #print('Reward: {}'.format(reward.shape))
-        #print('Next_State: {}'.format(next_state.shape))
-        #print('Done: {}'.format(done.shape))
-        #input()
+        print('State: {}'.format(state.shape))
+        print('Action: {}'.format(action.shape))
+        print('Reward: {}'.format(reward.shape))
+        print('Next_State: {}'.format(next_state.shape))
+        print('Done: {}'.format(done.shape))
+        input()
         #target = reward
-        predicted = self.brain.predict(next_state)
-        #print('Predicted: {}'.format(predicted))
-        #print('Predicted Max: {}'.format(np.amax(predicted)))
-        #input()
-        target = reward + (self.gamma * np.amax(predicted) * (1-done) )
-        target_f = self.brain.predict(state)
-        #print('Target_f: {}'.format(target_f))
+        predicted = self.brain.predict(next_state) #Previsão proximo estado.
+        target_f = self.brain.predict(state) #Previsão estado atual.
+        print('Predicted: {}'.format(predicted))
+        print('Predicted Max: {}'.format(np.amax(predicted)))
+        print('Reward: {}'.format(reward))
+        print('Target_f: {}'.format(target_f))
+        input()
         for i in range(sample_batch_size):
-            target_f[i][action] = target[0]
+            target = reward[i] + (self.gamma * np.amax(predicted[i]) * (1-done[i]) )
+            target_f[i][action[i]] = target
+            print('Action: {}'.format(action[i]))
+            print('target: {}'.format(target))
+            print('target_f: {}'.format(target_f[i]))
+            input()
+            
         
         #print('Target_f Formatado: {}'.format(target_f))
         #input()    
@@ -196,6 +205,7 @@ class Breakout():
         self.crop_on_top = 57
         self.crop_on_bottom = 15
         self.crop_on_border = 7
+    
     
     def to_gray_scale(self, img):
         return np.mean(img, axis=2).astype(np.uint8)
@@ -239,14 +249,12 @@ class Breakout():
                 index=0
                 total_reward=0
                 while not done:
-                    #if i_episodes > 1000:
-                    #self.env.render()
                     
-                    
+                    self.env.render()
                     action = self.agent.act(state)
-                    
                     next_state, reward, done, info = self.env.step(action)
-                    if (info['ale.lives'] < 0):
+                    print(info['ale.lives'])
+                    if (info['ale.lives'] < 5):
                         done = True
                         
                     next_state = self.crop_img(next_state)
@@ -271,13 +279,15 @@ class Breakout():
                     self.best_score = total_reward
                 print("Episode {}# Rewards: {}# BestScore: {}".format(i_episodes, total_reward, self.best_score))
                 score.append(index)
-                self.agent.replay(self.sample_batch_size)
+                if TRAIN:
+                        self.agent.replay(self.sample_batch_size)
         finally:
             plt.plot(data_reward)
             plt.xlabel('Episode')
             plt.ylabel('Reward')
         
-            self.agent.save_model()
+            if TRAIN:
+                self.agent.save_model()
             #self.time.compare_begin_with_end_time()
         
             
@@ -286,10 +296,10 @@ if __name__ == '__main__':
     breakout.run()      
     
     
+        
     
-
-
-
-
-
-
+    
+    
+    
+    
+    
