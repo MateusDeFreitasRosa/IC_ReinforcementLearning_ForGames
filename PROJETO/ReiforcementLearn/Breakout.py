@@ -19,6 +19,8 @@ import matplotlib.pyplot as plt
 ######################################################################################################################################
 import tensorflow as tf
 import keras.backend.tensorflow_backend as tfback
+
+
 print("tf.__version__ is", tf.__version__)
 print("tf.keras.__version__ is:", tf.keras.__version__)
 
@@ -37,17 +39,19 @@ def _get_available_gpus():
 tfback._get_available_gpus = _get_available_gpus
 
 ######################################################################################################################################
+
+
 score = []
 
-TRAIN = False
+TRAIN = True
 
 class Agent():
     def __init__(self, state_size, action_size, frame_height, frame_width):
         self.weight_backup      = "breakout_dataModel.h5"
         self.state_size         = state_size
         self.action_size        = action_size
-        self.memory             = deque(maxlen=100000) if TRAIN else deque(maxlen=5) 
-        self.learning_rate      = 0.0001
+        self.memory             = deque(maxlen=100000) if TRAIN else deque(maxlen=5)
+        self.learning_rate      = 0.001
         self.gamma              = 0.95
         self.exploration_rate   = 1.0
         self.exploration_min    = 0.01
@@ -84,11 +88,11 @@ class Agent():
         model.add(Flatten())
         
         #Criação da rede Neural.
-        model.add(Dense(528, activation='relu'))
+        model.add(Dense(512, activation='relu'))
         #model.add(Dropout(.5))
         #model.add(Dense(24, activation='relu'))
         model.add(Dense(self.action_size, activation='linear'))
-        model.compile(loss='mse', optimizer=Adam(lr=self.learning_rate))
+        model.compile(loss=tf.keras.losses.Huber(), optimizer=Adam(lr=self.learning_rate))
 
         if os.path.isfile(self.weight_backup):
             model.load_weights(self.weight_backup)
@@ -144,7 +148,6 @@ class Agent():
             action[k] = a
             reward[k] = r
     
-    
         #State = (32,4,84,84)  -> State Transpose = (32,84,84,4) 
         return np.transpose(state, axes=(0,2,3,1)), action, reward, np.transpose(next_state, axes=(0,2,3,1)), done
         
@@ -157,44 +160,48 @@ class Agent():
         #sample_batch = random.sample(self.memory, sample_batch_size)
         state, action, reward, next_state, done = self.pack_K_frames(sample_batch_size)
         
-        print('State: {}'.format(state.shape))
-        print('Action: {}'.format(action.shape))
-        print('Reward: {}'.format(reward.shape))
-        print('Next_State: {}'.format(next_state.shape))
-        print('Done: {}'.format(done.shape))
-        input()
+        #print('State: {}'.format(state.shape))
+        #print('Action: {}'.format(action.shape))
+        #print('Reward: {}'.format(reward.shape))
+        #print('Next_State: {}'.format(next_state.shape))
+        #print('Done: {}'.format(done.shape))
+        #input()
         #target = reward
         predicted = self.brain.predict(next_state) #Previsão proximo estado.
         target_f = self.brain.predict(state) #Previsão estado atual.
-        print('Predicted: {}'.format(predicted))
-        print('Predicted Max: {}'.format(np.amax(predicted)))
-        print('Reward: {}'.format(reward))
-        print('Target_f: {}'.format(target_f))
-        input()
+        #print('Predicted: {}'.format(predicted))
+        #print('Predicted[0]: {}'.format(predicted[2]))
+        #print('Predicted Max: {}'.format(np.amax(predicted)))
+        #print('Reward: {}'.format(reward))
+        #print('Target_f: {}'.format(target_f))
+        #input()
+        
+        
         for i in range(sample_batch_size):
-            target = reward[i] + (self.gamma * np.amax(predicted[i]) * (1-done[i]) )
+            target = reward[i] + (self.gamma * np.amax(predicted[i]) * (1-done[i]))
             target_f[i][action[i]] = target
-            print('Action: {}'.format(action[i]))
-            print('target: {}'.format(target))
-            print('target_f: {}'.format(target_f[i]))
-            input()
+            #print('Action: {}'.format(action[i]))
+            #print('target: {}'.format(target))
+            #print('target_f: {}'.format(target_f[i]))
+            #input()
             
         
         #print('Target_f Formatado: {}'.format(target_f))
         #input()    
         
-        self.brain.fit(state, target_f, epochs=1, verbose=0)
+        history = self.brain.fit(state, target_f, epochs=1, verbose=0)
         if self.exploration_rate > self.exploration_min:
             self.exploration_rate *= self.exploration_decay
+        return history
 
 
 data_reward = []
 class Breakout():
     
     def __init__(self):
-        self.env = gym.make('Breakout-v0')
+        self.env = gym.make('Pong-v0')
         self.sample_batch_size = 32
-        self.episodes = 20000
+        self.episodes = 220000
         
         self.action_size = self.env.action_space.n
         self.state_size = (84,84)
@@ -202,9 +209,11 @@ class Breakout():
         self.number_print = 0
         self.best_score = 0
         self.replay_bestPlay = deque(maxlen=300)
-        self.crop_on_top = 57
+        self.crop_on_top = 35 #57
         self.crop_on_bottom = 15
         self.crop_on_border = 7
+        self.frame_number=0
+        self.freq_update=4
     
     
     def to_gray_scale(self, img):
@@ -220,11 +229,9 @@ class Breakout():
         return np.sign(reward)
     
     def crop_img(self, img):
-        return img[self.crop_on_top: -self.crop_on_bottom, self.crop_on_border:-self.crop_on_border]
+        #return img[self.crop_on_top: -self.crop_on_bottom, self.crop_on_border:-self.crop_on_border]
+        return img[14:-15]
         
-        
-        
-    
     
     def smile_for_the_photo(self):
         print('Salvar Imagens (pressione qualquer tecla para continuar)')
@@ -249,14 +256,12 @@ class Breakout():
                 index=0
                 total_reward=0
                 while not done:
-                    
+
                     self.env.render()
                     action = self.agent.act(state)
                     next_state, reward, done, info = self.env.step(action)
-                    print(info['ale.lives'])
-                    if (info['ale.lives'] < 5):
-                        done = True
-                        
+                    #if (info['ale.lives'] < 5):
+                    #    done = True
                     next_state = self.crop_img(next_state)
                     
                     reward = np.sign(reward)
@@ -270,17 +275,18 @@ class Breakout():
                     self.agent.remember(state, action, reward, next_state, done)
                     state = next_state
                     index+=1
-                
+                   
                 #self.time.add_list_time()
                 #out_consult_time = self.time.consult_time()
                 #out_consult_time_current = self.time.consult_time_current()
                 data_reward.append(total_reward)
                 if total_reward > self.best_score:
                     self.best_score = total_reward
-                print("Episode {}# Rewards: {}# BestScore: {}".format(i_episodes, total_reward, self.best_score))
+                
                 score.append(index)
                 if TRAIN:
-                        self.agent.replay(self.sample_batch_size)
+                    history = self.agent.replay(self.sample_batch_size)
+                print("Episode {}# Rewards: {}# BestScore: {}# Loss: {}".format(i_episodes, total_reward, self.best_score, history.history['loss'] if history != None else '-'))
         finally:
             plt.plot(data_reward)
             plt.xlabel('Episode')
