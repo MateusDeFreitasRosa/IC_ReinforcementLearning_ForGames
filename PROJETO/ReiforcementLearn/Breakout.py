@@ -41,6 +41,30 @@ tfback._get_available_gpus = _get_available_gpus
 ######################################################################################################################################
 
 
+
+import numpy as np
+import tensorflow as tf
+
+'''
+ ' Huber loss.
+ ' https://jaromiru.com/2017/05/27/on-using-huber-loss-in-deep-q-learning/
+ ' https://en.wikipedia.org/wiki/Huber_loss
+'''
+def huber_loss(y_true, y_pred, clip_delta=1.0):
+  error = y_true - y_pred
+  cond  = tf.keras.backend.abs(error) < clip_delta
+
+  squared_loss = 0.5 * tf.keras.backend.square(error)
+  linear_loss  = clip_delta * (tf.keras.backend.abs(error) - 0.5 * clip_delta)
+
+  return tf.where(cond, squared_loss, linear_loss)
+
+'''
+ ' Same as above but returns the mean loss.
+'''
+def huber_loss_mean(y_true, y_pred, clip_delta=1.0):
+  return tf.keras.backend.mean(huber_loss(y_true, y_pred, clip_delta))
+
 score = []
 
 TRAIN = True
@@ -92,7 +116,7 @@ class Agent():
         #model.add(Dropout(.5))
         #model.add(Dense(24, activation='relu'))
         model.add(Dense(self.action_size, activation='linear'))
-        model.compile(loss=tf.keras.losses.Huber(), optimizer=Adam(lr=self.learning_rate))
+        model.compile(loss=huber_loss_mean, optimizer=Adam(lr=self.learning_rate))
 
         if os.path.isfile(self.weight_backup):
             model.load_weights(self.weight_backup)
@@ -156,6 +180,7 @@ class Agent():
        
         if len(self.memory) < sample_batch_size:
             return
+
         
         #sample_batch = random.sample(self.memory, sample_batch_size)
         state, action, reward, next_state, done = self.pack_K_frames(sample_batch_size)
@@ -257,7 +282,7 @@ class Breakout():
                 total_reward=0
                 while not done:
 
-                    self.env.render()
+                    #self.env.render()
                     action = self.agent.act(state)
                     next_state, reward, done, info = self.env.step(action)
                     #if (info['ale.lives'] < 5):
