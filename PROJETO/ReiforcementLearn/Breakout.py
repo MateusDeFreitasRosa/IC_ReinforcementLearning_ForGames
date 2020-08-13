@@ -16,6 +16,7 @@ import os
 import random
 import matplotlib.pyplot as plt
 
+
 ######################################################################################################################################
 import tensorflow as tf
 import keras.backend.tensorflow_backend as tfback
@@ -38,9 +39,20 @@ def _get_available_gpus():
 
 tfback._get_available_gpus = _get_available_gpus
 
+####VERIFY IF GPU IS RUNNING.
+#print(device_lib.list_local_devices())
+from keras import backend as K
+K.tensorflow_backend._get_available_gpus()
+import keras
+
+import tensorflow.compat.v1 as tf1
+
+config = tf1.ConfigProto( device_count = {'GPU': 1 , 'CPU': 4} ) 
+sess = tf1.Session(config=config) 
+tf.compat.v1.keras.backend.set_session(sess)
+
+
 ######################################################################################################################################
-
-
 
 import numpy as np
 import tensorflow as tf
@@ -68,22 +80,26 @@ def huber_loss_mean(y_true, y_pred, clip_delta=1.0):
 score = []
 
 TRAIN = True
+OBSERVER = 5000
+UPDATE_TARGET_MODEL = 1000
+qntUpdate=0
 
 class Agent():
-    def __init__(self, state_size, action_size, frame_height, frame_width):
+    def __init__(self, state_size, action_size,):
         self.weight_backup      = "breakout_dataModel.h5"
         self.state_size         = state_size
         self.action_size        = action_size
-        self.memory             = deque(maxlen=100000) if TRAIN else deque(maxlen=5)
-        self.learning_rate      = 0.001
-        self.gamma              = 0.95
+        self.memory             = deque(maxlen=50000) if TRAIN else deque(maxlen=5)
+        self.learning_rate      = 0.00005
+        self.gamma              = 0.99
         self.exploration_rate   = 1.0
         self.exploration_min    = 0.01
-        self.exploration_decay  = 0.995
+        self.exploration_decay  = 1e-5
         self.k_frames           = 4
-        self.frame_height       = frame_height
-        self.frame_width        = frame_width
+        self.frame_height       = self.state_size[0]
+        self.frame_width        = self.state_size[1]
         self.brain              = self._build_model()
+        self.brain_target       = self._build_model()
 
 
     def _build_model(self):
@@ -92,19 +108,19 @@ class Agent():
             
         #Criar camada de convolução.
         #-> (32,84,84,4)
-        model.add(Conv2D(32, (8,8), strides=4,  input_shape = (self.frame_height, self.frame_width, self.k_frames) , activation = 'relu', padding='same'))
+        model.add(Conv2D(32, (8,8), strides=4,  input_shape = (self.state_size[0], self.state_size[1], self.k_frames) , activation = 'relu', padding='valid'))
         #<- (84,84)
         #->(84,84)
         #model.add(MaxPooling2D(pool_size = (2,2), dim_ordering='th'))
         #<-(42,42)
         #->(42,42)
-        model.add(Conv2D(64, (4,4), strides=2, activation = 'relu', padding='same'))
+        model.add(Conv2D(64, (4,4), strides=2, activation = 'relu', padding='valid'))
         #<-(42,42)
         #->(42,42)
         #model.add(MaxPooling2D(pool_size = (2,2), dim_ordering='th'))
         #<-(21,21)
         #->(21,21)
-        model.add(Conv2D(128, (3,3), strides=1, activation = 'relu', padding='same'))
+        model.add(Conv2D(64, (3,3), strides=1, activation = 'relu', padding='valid'))
         #model.add(MaxPooling2D(pool_size = (2,2)))
         #<-(11,11)
         #model.add(Conv2D(256, (3,3), activation = 'relu', padding='same'))
@@ -112,12 +128,11 @@ class Agent():
         model.add(Flatten())
         
         #Criação da rede Neural.
-        model.add(Dense(512, activation='relu'))
+        model.add(Dense(512, activation='relu', kernel_initializer='he_uniform'))
         #model.add(Dropout(.5))
-        #model.add(Dense(24, activation='relu'))
-        model.add(Dense(self.action_size, activation='linear'))
-        model.compile(loss=huber_loss_mean, optimizer=Adam(lr=self.learning_rate))
-
+        model.add(Dense(self.action_size, activation='linear', kernel_initializer='he_uniform'))
+        model.compile(loss='mean_squared_error', optimizer=Adam(lr=self.learning_rate))
+        model.summary()
         if os.path.isfile(self.weight_backup):
             model.load_weights(self.weight_backup)
             self.exploration_rate = self.exploration_min
@@ -129,10 +144,11 @@ class Agent():
     def get_last_k_frames(self, state):
         frames = np.empty((self.k_frames, self.frame_height, self.frame_width))
 
-        for i in range(1, 5):
-            state, _, _, _, _ = self.memory[len(self.memory)-i]
-            frames[i-1] = state
-          
+        for i in range(0, self.k_frames):
+            s, _, _, _, _ = self.memory[len(self.memory)-(self.k_frames-i)]
+            frames[i] = s
+            
+        frames[3] = state  
         return np.transpose(frames, axes=(1,2,0))
 
     def act(self, state):
@@ -183,6 +199,7 @@ class Agent():
 
         
         #sample_batch = random.sample(self.memory, sample_batch_size)
+    
         state, action, reward, next_state, done = self.pack_K_frames(sample_batch_size)
         
         #print('State: {}'.format(state.shape))
@@ -192,7 +209,7 @@ class Agent():
         #print('Done: {}'.format(done.shape))
         #input()
         #target = reward
-        predicted = self.brain.predict(next_state) #Previsão proximo estado.
+        predicted = self.brain_target.predict(next_state) #Previsão proximo estado.
         target_f = self.brain.predict(state) #Previsão estado atual.
         #print('Predicted: {}'.format(predicted))
         #print('Predicted[0]: {}'.format(predicted[2]))
@@ -213,14 +230,22 @@ class Agent():
         
         #print('Target_f Formatado: {}'.format(target_f))
         #input()    
+        history = self.brain.fit(state, target_f, batch_size=sample_batch_size, epochs=1, verbose=0)
         
-        history = self.brain.fit(state, target_f, epochs=1, verbose=0)
         if self.exploration_rate > self.exploration_min:
-            self.exploration_rate *= self.exploration_decay
-        return history
+            self.exploration_rate -= self.exploration_decay
+    
+        return history, self.exploration_rate
 
+    def update_target_model(self, frame_number):
+        if (frame_number % UPDATE_TARGET_MODEL == 0 and TRAIN and frame_number > OBSERVER):
+            self.brain_target.set_weights(self.brain.get_weights())
+            global qntUpdate
+            qntUpdate+=1
+            print('-------------------------UPDATED TARGET MODEL({}) ------------------------------'.format(qntUpdate))
 
-data_reward = []
+data_average_reward = []
+total_reward_game = []
 class Breakout():
     
     def __init__(self):
@@ -229,8 +254,8 @@ class Breakout():
         self.episodes = 220000
         
         self.action_size = self.env.action_space.n
-        self.state_size = (84,84)
-        self.agent = Agent(self.state_size, self.action_size, 84, 84)
+        self.state_size = (80,80)
+        self.agent = Agent(self.state_size, self.action_size)
         self.number_print = 0
         self.best_score = 0
         self.replay_bestPlay = deque(maxlen=300)
@@ -239,24 +264,25 @@ class Breakout():
         self.crop_on_border = 7
         self.frame_number=0
         self.freq_update=4
+        self.qnt_train=0
     
     
     def to_gray_scale(self, img):
-        return np.mean(img, axis=2).astype(np.uint8)
+        return 0.299*img[:,:,0] + 0.587*img[:,:,1] + 0.114*img[:,:,2]
     
     def down_sample(self, img):
         return img[::2,::2]
     
-    def resize(self, img):
-        return cv2.resize(self.to_gray_scale(self.down_sample(img)), (84,84)) / 255
-        
-    def transform_reward(self, reward):
-        return np.sign(reward)
+    def preprocess_img(self, img):
+        return np.asarray(self.to_gray_scale(self.down_sample(self.crop_img(img))) / 255, dtype=np.float32)
     
     def crop_img(self, img):
         #return img[self.crop_on_top: -self.crop_on_bottom, self.crop_on_border:-self.crop_on_border]
-        return img[14:-15]
-        
+        return img[35:195]
+  
+    def transform_reward(self, reward):
+        return np.sign(reward)
+      
     
     def smile_for_the_photo(self):
         print('Salvar Imagens (pressione qualquer tecla para continuar)')
@@ -274,20 +300,22 @@ class Breakout():
         try:
             for i_episodes in range(self.episodes):
                 state = self.env.reset()
-                state = self.crop_img(state)
-                state = self.resize(state)
+               
+                state = self.preprocess_img(state)
             
                 done = False
                 index=0
                 total_reward=0
+                history_list = []
+                exploration = 1.0
                 while not done:
 
-                    #self.env.render()
+                    if i_episodes > 300:
+                        self.env.render()
                     action = self.agent.act(state)
                     next_state, reward, done, info = self.env.step(action)
                     #if (info['ale.lives'] < 5):
                     #    done = True
-                    next_state = self.crop_img(next_state)
                     
                     reward = np.sign(reward)
                     total_reward+=reward
@@ -295,32 +323,41 @@ class Breakout():
                     #if total_reward >= 5:
                     #    self.smile_for_the_photo()
                         
-                    next_state = self.resize(next_state)
+                    next_state = self.preprocess_img(next_state)
                     
                     self.agent.remember(state, action, reward, next_state, done)
                     state = next_state
                     index+=1
-                   
+                    
+                    self.frame_number+=1
+                    if (TRAIN and self.frame_number > OBSERVER):
+                        history, exploration = self.agent.replay(self.sample_batch_size)
+                        history_list.append(history.history['loss'])
+                        self.qnt_train+=1
+                        
+                    self.agent.update_target_model(self.frame_number)
                 #self.time.add_list_time()
                 #out_consult_time = self.time.consult_time()
                 #out_consult_time_current = self.time.consult_time_current()
-                data_reward.append(total_reward)
+                total_reward_game.append(total_reward)
+                data_average_reward.append(np.mean(total_reward_game[-50:]))
+               
                 if total_reward > self.best_score:
                     self.best_score = total_reward
                 
                 score.append(index)
-                if TRAIN:
-                    history = self.agent.replay(self.sample_batch_size)
-                print("Episode {}# Rewards: {}# BestScore: {}# Loss: {}".format(i_episodes, total_reward, self.best_score, history.history['loss'] if history != None else '-'))
+                #if TRAIN:
+                #    history = self.agent.replay(self.sample_batch_size)
+                print("Episode {}# Rewards: {}# Average: {:.3}# Loss: {:.6} # Train: {} # Exploration: {:.3}".format(i_episodes, total_reward, data_average_reward[len(data_average_reward)-1], np.mean(history_list), self.qnt_train, exploration))
         finally:
-            plt.plot(data_reward)
+            plt.plot(data_average_reward)
             plt.xlabel('Episode')
             plt.ylabel('Reward')
         
             if TRAIN:
                 self.agent.save_model()
             #self.time.compare_begin_with_end_time()
-        
+            self.env.close()
             
 if __name__ == '__main__':
     breakout = Breakout()
