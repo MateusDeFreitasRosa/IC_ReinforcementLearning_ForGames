@@ -80,7 +80,7 @@ def huber_loss_mean(y_true, y_pred, clip_delta=1.0):
 score = []
 
 TRAIN = True
-OBSERVER = 5000
+OBSERVER = 32
 UPDATE_TARGET_MODEL = 1000
 qntUpdate=0
 
@@ -89,8 +89,8 @@ class Agent():
         self.weight_backup      = "breakout_dataModel.h5"
         self.state_size         = state_size
         self.action_size        = action_size
-        self.memory             = deque(maxlen=50000) if TRAIN else deque(maxlen=5)
-        self.learning_rate      = 0.00005
+        self.memory             = deque(maxlen=25000) if TRAIN else deque(maxlen=5)
+        self.learning_rate      = 0.000025
         self.gamma              = 0.99
         self.exploration_rate   = 1.0
         self.exploration_min    = 0.01
@@ -129,9 +129,11 @@ class Agent():
         
         #Criação da rede Neural.
         model.add(Dense(512, activation='relu', kernel_initializer='he_uniform'))
+        model.add(Dense(256, activation='relu', kernel_initializer='he_uniform'))
+        model.add(Dense(64, activation='relu', kernel_initializer='he_uniform'))
         #model.add(Dropout(.5))
         model.add(Dense(self.action_size, activation='linear', kernel_initializer='he_uniform'))
-        model.compile(loss='mean_squared_error', optimizer=Adam(lr=self.learning_rate))
+        model.compile(loss=huber_loss_mean, optimizer=Adam(lr=self.learning_rate))
         model.summary()
         if os.path.isfile(self.weight_backup):
             model.load_weights(self.weight_backup)
@@ -217,7 +219,6 @@ class Agent():
         #print('Reward: {}'.format(reward))
         #print('Target_f: {}'.format(target_f))
         #input()
-        
         
         for i in range(sample_batch_size):
             target = reward[i] + (self.gamma * np.amax(predicted[i]) * (1-done[i]))
@@ -310,8 +311,8 @@ class Breakout():
                 exploration = 1.0
                 while not done:
 
-                    if i_episodes > 300:
-                        self.env.render()
+                    
+                    self.env.render()
                     action = self.agent.act(state)
                     next_state, reward, done, info = self.env.step(action)
                     #if (info['ale.lives'] < 5):
