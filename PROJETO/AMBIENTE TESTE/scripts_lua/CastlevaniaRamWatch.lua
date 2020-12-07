@@ -23,16 +23,16 @@ while true do
   gui.text(50,50, "pos X = " .. memory.readbyte(0x00040)); -- get position X from Simon Belmont
   gui.text(50,60, "pt2 X = " .. memory.readbyte(0x00041)); -- accumulator for X from Simon Belmont (+1 on 0040 overflow)
   
-  file_ready = io.open('lua_ready.txt', 'w');
-  io.output(file_ready);  -- sets the default output file as cvram.txt
-  io.write("can not");
-  io.close(file_ready);
+  --file_ready = io.open('lua_ready.txt', 'w');
+  --io.output(file_ready);  -- sets the default output file as cvram.txt
+  --io.write("can not");
+  --io.close(file_ready);
 
-  file01 = io.open('lua_ready.txt', 'w');
-  io.input(file01);
-  lua_ready = io.read();
-  io.close(file01);
-  gui.text(50,70, "lua_ready = " .. lua_ready);
+  --file01 = io.open('lua_ready.txt', 'w');
+  --io.input(file01);
+  --lua_ready = io.read();
+  --io.close(file01);
+  --gui.text(50,70, "lua_ready = " .. lua_ready);
 
   
 
@@ -54,7 +54,6 @@ while true do
     io.close(file01);
     gui.text(50,70, "lua_ready = " .. lua_ready);
     
-  
     gui.savescreenshotas("cv_screen.png");
   end
   
