@@ -17,6 +17,8 @@ import random
 import matplotlib.pyplot as plt
 import pickle
 import time
+import imageio
+
 
 ######################################################################################################################################
 import tensorflow as tf
@@ -82,13 +84,13 @@ def huber_loss_mean(y_true, y_pred, clip_delta=1.0):
 score = []
 
 TRAIN = True
-OBSERVER = 20000
+OBSERVER = 100
 UPDATE_TARGET_MODEL = 1000
 qntUpdate=0
 tamMemoryK = 150 # O tamanho da memoria será esse valor multiplicado por 1000.
 
 game = 'Breakout-v0'
-diretorioInProcess = "./currentProcessIC/"+game+"/"
+diretorioInProcess = "./currentProcessICMinih/"+game+"/"
 total_reward_game = []
 data_average_reward = []
 trainsPerEpisode = []
@@ -99,7 +101,7 @@ class Agent():
         self.state_size         = state_size
         self.action_size        = action_size
         self.memory             = deque(maxlen=tamMemoryK*1000) if TRAIN else deque(maxlen=5)
-        self.learning_rate      = 0.0000025
+        self.learning_rate      = 0.00008
         self.gamma              = 0.99
         self.exploration_rate   = 1.0
         self.exploration_min    = 0.05
@@ -147,7 +149,7 @@ class Agent():
         model.summary()
         if os.path.isfile(self.weight_backup):
             model.load_weights(self.weight_backup)
-            self.exploration_rate = .01 #self.exploration_min
+            self.exploration_rate = self.exploration_min
             self.load_data()
         return model
     
@@ -301,6 +303,7 @@ class Breakout():
         self.frame_number=0
         self.freq_update=4
         self.qnt_train=0
+        self.epochs_to_save = 50
         self.time_train_init = time.time()
 
         self.frames_in_atual_episode=0
@@ -320,11 +323,16 @@ class Breakout():
         return img[::2,::2]
     
     def preprocess_img(self, img):        
-        return np.asarray(self.down_sample(self.crop_img(self.to_gray_scale(img))) / 255, dtype=np.float32)
+        new_image = cv2.resize(np.asarray(self.down_sample(self.crop_img(self.to_gray_scale(img))) / 255, dtype=np.float32), self.state_size, interpolation=cv2.INTER_AREA)
+        '''plt.imshow(new_image)
+        plt.show()
+        print('Shape: {}'.format(new_image.shape))
+        input()'''
+        return new_image
         
     def crop_img(self, img):
         #return img[self.crop_on_top: -self.crop_on_bottom, self.crop_on_border:-self.crop_on_border]
-        return img[35:195]
+        return img[35:195, 8:-8]
   
     def transform_reward(self, reward):
         return np.sign(reward)
@@ -336,17 +344,19 @@ class Breakout():
         
         return str('{}hr : {}min : {}seg'.format(horas, minutos, segundos))
     
-    def smile_for_the_photo(self):
-        print('Salvar Imagens (pressione qualquer tecla para continuar)')
-        input()
-        for i in range(len(self.replay_bestPlay)):
-            plt.imshow(self.replay_bestPlay[i])
-            plt.savefig( 'images/'+str(self.number_print)+'.png', format='png')
-            plt.show()
-            self.number_print+=1
-        print('Imagens salvas com sucesso!')
-        input()
-
+    def save_image_epoch(self, gif_to_save, epoch):
+        
+        if (epoch % self.epochs_to_save == 0):
+            diretorio = diretorioInProcess+'/movies/'
+            if not os.path.isdir(diretorio):
+                os.makedirs(diretorio)
+                
+            frames_per_seconds_gif = 60
+            seconds = len(gif_to_save)/frames_per_seconds_gif
+    
+            imageio.mimwrite(diretorio+str(epoch)+'.mp4', gif_to_save , fps = 75)
+            print('Gif Salvo') 
+            
     def run(self):
         global total_reward_game, data_average_reward, trainsPerEpisode
     
@@ -355,18 +365,18 @@ class Breakout():
                 state = self.env.reset()
                
                 state = self.preprocess_img(state)
-            
+                
                 done = False
-                index=0
+                atual_epoch = []
                 total_reward=0
                 history_list = []
                 exploration = 1.0
                 self.seconds_in_atual_episode= time.time()
                 
                 while not done:
-
+                                        
                     #if i_episodes > 600 or not TRAIN:
-                    self.env.render()
+                    #self.env.render()
                     action = self.agent.act(state)
                     next_state, reward, done, info = self.env.step(action)
                     
@@ -375,11 +385,11 @@ class Breakout():
                     #self.replay_bestPlay.append(next_state)
                     #if total_reward >= 5:
                     #    self.smile_for_the_photo()
-                        
+                    if (i_episodes % self.epochs_to_save == 0):
+                        atual_epoch.append(np.asarray(next_state))
                     next_state = self.preprocess_img(next_state)
                     self.agent.remember(state, action, reward, next_state, done)
                     state = next_state
-                    index+=1
                     
                     self.frame_number+=1
                     self.frames_in_atual_episode+=1
@@ -390,18 +400,19 @@ class Breakout():
                             self.qnt_train+=1
                         
                         self.agent.update_target_model(self.frame_number)
+    
                 total_reward_game.append(total_reward)
                 mediaUltimosJogos = np.mean(total_reward_game[-50:])
                 trainsPerEpisode.append(self.qnt_train)
                 data_average_reward.append(mediaUltimosJogos)
                 if TRAIN and self.frame_number > OBSERVER:
-                   
+                    self.save_image_epoch(atual_epoch, i_episodes)   
                     
                     if mediaUltimosJogos > self.best_score and self.frame_number > OBSERVER:
                             self.best_score = mediaUltimosJogos
                             self.agent.save_model(data_average_reward, total_reward_game, trainsPerEpisode)
                             print('Save -> ', end='')
-                print("Episode {}# r: {}# Average: {:.3}# Loss: {:.6} # Train: {} # eps: {:.3}# Space: {:.2}% 'fps: {}:".format(i_episodes, total_reward, data_average_reward[len(data_average_reward)-1], np.mean(history_list), self.qnt_train, exploration, ((len(self.agent.memory) / (tamMemoryK*1000)) * 100), self.get_frames_per_seconds_in_atual_episode() ))
+                print("Episode {}# r: {}# Average: {:.3}# Loss: {:.6} # Train: {} # eps: {:.3}# Space: {}% 'fps: {}:".format(i_episodes, total_reward, data_average_reward[len(data_average_reward)-1], np.mean(history_list), self.qnt_train, exploration, round(((len(self.agent.memory) / (tamMemoryK*1000)) * 100), 2), self.get_frames_per_seconds_in_atual_episode() ))
                 self.restart_chronometer()
         finally:
             plt.plot(trainsPerEpisode, data_average_reward)

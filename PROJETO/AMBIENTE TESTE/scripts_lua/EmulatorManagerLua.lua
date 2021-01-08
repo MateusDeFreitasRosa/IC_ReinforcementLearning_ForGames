@@ -1,5 +1,5 @@
 local socket = require("socket.core")
-local json = require("json")
+local json = require("json2020")
 
 
 function connect(address, port, laddress, lport)
@@ -28,23 +28,63 @@ end
 --sock, err = bind("127.0.0.1", 80, -1)
 --print(sock, err)
 
-function getMatrizScreen()
-    local xLen = 255
-    local yLen = 239
+function getMatrizScreen(params)
+    downsample = params['down_sample'] or 1
+    local xLen = params['len_max_x'] or 255
+    local yLen = params['len_max_y'] or 239
+    local xMin = params['len_min_x'] or 1
+    local yMin = params['len_min_y'] or 1
+    local grayscale = params['grayscale'] or false
+    
+    if (xLen > 255) then
+        xLen = 255
+    elseif (yLen > 239) then
+        yLen = 239
+    elseif (xMin < 1) then
+        xMin = 1
+    elseif (yMin < 1) then
+        yMin = 1
+    end
+
+    if downsample < 0 then
+        downsample = 1
+    end
+
     local matriz = {}
-    for i=0, xLen do
-        matriz[i] = {}
-        for j=0, yLen do
-            matriz[i][j] = emu.getscreenpixel(i,j,true)
+    if grayscale then
+        for j=yMin, yLen, downsample do
+            local auxMatriz = {}
+            for i=xMin, xLen, downsample do
+                local r,g,b,palette = emu.getscreenpixel(i-1,j-1,true)
+                table.insert( auxMatriz, 0.299*r + 0.587*g + 0.114*b)
+            end
+            table.insert( matriz, auxMatriz)
+        end
+    else
+        for j=yMin, yLen, downsample do
+            local auxMatriz = {}
+            for i=xMin, xLen, downsample do
+                local r,g,b,palette = emu.getscreenpixel(i-1,j-1,true)
+                local pixelColor = {r,g,b}
+                table.insert( auxMatriz, pixelColor)
+            end
+            table.insert( matriz, auxMatriz)
         end
     end
+    
+
     return matriz
 end
 
 function sendMessage(message)
-    local  operation = json.encode(message)
-    print('SEND: '..operation)
-    --sock2:send(operation)
+    --print(matrix)
+    --print('SendMessage')
+    local  operation = json.encode(message);
+    --local compressed = assert(lualzw.compress(operation))
+    --print('Compressed: '.. string.len( compressed ));
+    --print('Len: '..tostring(string.len( operation )));
+    sock2:send('json'..operation)
+    
 end
 
 sock2, err2 = connect("127.0.0.1", 12345)
@@ -53,15 +93,24 @@ print("Connected", sock2, err2)
 
 Operation = {
     menu = {
-        getScreenShot = function ()
-            local matriz = getMatrizScreen()
-            sendMessage({matriz = matriz})
+        getScreenShot = function (params)
+            local matriz = getMatrizScreen(params)
+            sendMessage({matriz=matriz})
+        end,
+        pressJoypad = function (params)
+            local joypadControll = joypad.get(1)
+            joypadControll.A = true
+            joypad.set(1, joypadControll)
+            joypadControll.A = false
+            joypad.set(1, joypadControll)
+            sendMessage('niceJob')
         end
     }
 }
 
 function Operation:execute(operation)
-    self.menu[operation]()
+    local decode_string = json.decode(operation)
+    self.menu[decode_string['operation']](decode_string['params'] or json.encode('"params": {"down_sample": false}'))
 end
 
 function reciveCommands()
@@ -74,21 +123,17 @@ function reciveCommands()
         print('Error: '..err)
         print('Part: '..part)
         Operation:execute(message)
-        
-        
         --print(message)
         --local recCommand = json.decode(message)
         --table.insert(commandsQueue, recCommand)
         --coroutine.resume(parseCommandCoroutine)
     end
 end
-
-
 function main()
     while true do
-        reciveCommands()
         emu.frameadvance()
+        reciveCommands()
     end
 end
 
-main()
+main();
