@@ -19,13 +19,12 @@ class FceuxManager():
         self.gamePath = '../AMBIENTE TESTE/games/Castlevania.nes'
         self.scriptPath = '../AMBIENTE TESTE/scripts_lua/CastlevaniaRamWatch.lua'
         self.scriptArgument = '-lua: '+self.scriptPath
-        self.socket = 
         
     def sendComand(self, command):
         
     
     def start(self):
-       #subprocess.call([self.fceuxPath, self.gamePath,], shell=True, start_new_session=True),
+       subprocess.call([self.fceuxPath, self.gamePath,], shell=True, start_new_session=True),
        self.startServer()
     
     def startServer(self,):

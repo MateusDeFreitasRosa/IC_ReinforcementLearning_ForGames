@@ -1,6 +1,8 @@
 local socket = require("socket.core")
 local json = require("json2020")
 
+PLAYER_NUMBER = 1;
+
 
 function connect(address, port, laddress, lport)
     local sock, err = socket.tcp()
@@ -91,26 +93,44 @@ sock2, err2 = connect("127.0.0.1", 12345)
 sock2:settimeout(0)
 print("Connected", sock2, err2)
 
+
+function read_memory()
+    local playerPosition = ((memory.readbyte(0x006D)*255) + memory.readbyte(0x0086))
+    local enemyPosition = (memory.readbyte(0x006E)*255 + memory.readbyte(0x0087))
+    return {
+        reward = playerPosition,
+        endgame = memory.readbyte(0x000E),
+    }
+    
+end
+
 Operation = {
     menu = {
         getScreenShot = function (params)
             local matriz = getMatrizScreen(params)
             sendMessage({matriz=matriz})
         end,
-        pressJoypad = function (params)
-            local joypadControll = joypad.get(1)
-            joypadControll.A = true
-            joypad.set(1, joypadControll)
-            joypadControll.A = false
-            joypad.set(1, joypadControll)
-            sendMessage('niceJob')
+        nextStep = function (params)
+            joypadControll = joypad.get(PLAYER_NUMBER)
+            print(joypadControll)
+            joypadControll[params['press']] = true
+            joypad.set(PLAYER_NUMBER, joypadControll)
+
+            local mem = read_memory()
+
+            local map = {
+                newState = getMatrizScreen(params['screenshot_params']),
+                endgame = mem.endgame,
+                reward = mem.reward
+            }
+            sendMessage(json.encode(map))
+            emu.frameadvance()
         end
     }
 }
-
 function Operation:execute(operation)
     local decode_string = json.decode(operation)
-    self.menu[decode_string['operation']](decode_string['params'] or json.encode('"params": {"down_sample": false}'))
+    self.menu[decode_string['operation']](decode_string['params'])
 end
 
 function reciveCommands()
@@ -120,8 +140,8 @@ function reciveCommands()
     end
     if message and string.len(message)>0 then
         print('Message: '..message)
-        print('Error: '..err)
-        print('Part: '..part)
+        --print('Error: '..err)
+        --print('Part: '..part)
         Operation:execute(message)
         --print(message)
         --local recCommand = json.decode(message)
@@ -130,8 +150,9 @@ function reciveCommands()
     end
 end
 function main()
+    
     while true do
-        emu.frameadvance()
+        
         reciveCommands()
     end
 end
