@@ -26,7 +26,7 @@ class Server():
         print("Waiting connection from emulator...")
         conn, addr = s.accept()
         conn.setblocking(4)
-        conn.settimeout(30)
+        conn.settimeout(3)
         print("Connected: ", conn)
         return conn
         #callbacksThread = startCallbacksThread()

@@ -3,7 +3,6 @@ local json = require("json2020")
 
 PLAYER_NUMBER = 1;
 
-
 function connect(address, port, laddress, lport)
     local sock, err = socket.tcp()
     if not sock then return nil, err end
@@ -112,7 +111,6 @@ Operation = {
         end,
         nextStep = function (params)
             joypadControll = joypad.get(PLAYER_NUMBER)
-            print(joypadControll)
             joypadControll[params['press']] = true
             joypad.set(PLAYER_NUMBER, joypadControll)
 
@@ -124,7 +122,6 @@ Operation = {
                 reward = mem.reward
             }
             sendMessage(json.encode(map))
-            emu.frameadvance()
         end
     }
 }
@@ -134,12 +131,15 @@ function Operation:execute(operation)
 end
 
 function reciveCommands()
-    local message, err, part = sock2:receive("*all")
+    local message, err, part = sock2:receive('*all')
+    --print('Message: '..(message or 'nil'))
+    --print('Error: '..(err or 'nil'))
+    print('Part: '..(part or 'nil'))
     if not message then
         message = part
     end
     if message and string.len(message)>0 then
-        print('Message: '..message)
+        --print('Message: '..message)
         --print('Error: '..err)
         --print('Part: '..part)
         Operation:execute(message)
@@ -149,12 +149,18 @@ function reciveCommands()
         --coroutine.resume(parseCommandCoroutine)
     end
 end
+
+function teste()
+    print('Teste')
+end
+
 function main()
-    
     while true do
-        
+        emu.frameadvance()
         reciveCommands()
+        socket.sleep(0.25)
     end
 end
+--gui.register(reciveCommands)
 
 main();
