@@ -1,7 +1,7 @@
 local socket = require("socket.core")
 local json = require("json2020")
-
 PLAYER_NUMBER = 1;
+
 
 function connect(address, port, laddress, lport)
     local sock, err = socket.tcp()
@@ -51,40 +51,65 @@ function getMatrizScreen(params)
         downsample = 1
     end
 
-    local matriz = {}
+    --local matriz = {}
+    local matriz = "["
     if grayscale then
         for j=yMin, yLen, downsample do
-            local auxMatriz = {}
+            --local auxMatriz = {}
+            local auxMatriz=''
+            if j==yMin then
+                auxMatriz = "["
+            elseif j>yMin then
+                auxMatriz = ",["
+            end
             for i=xMin, xLen, downsample do
                 local r,g,b,palette = emu.getscreenpixel(i-1,j-1,true)
-                table.insert( auxMatriz, 0.299*r + 0.587*g + 0.114*b)
+                --table.insert( auxMatriz, 0.299*r + 0.587*g + 0.114*b)
+                if i > xMin then
+                    auxMatriz = auxMatriz..","..(0.299*r + 0.587*g + 0.114*b)
+                elseif i == xMin then
+                    auxMatriz = auxMatriz..(0.299*r + 0.587*g + 0.114*b)
+                end
             end
-            table.insert( matriz, auxMatriz)
+            --table.insert( matriz, auxMatriz)
+            matriz = matriz..auxMatriz.."]"
         end
     else
         for j=yMin, yLen, downsample do
-            local auxMatriz = {}
+            --local auxMatriz = {}
+            local auxMatriz=''
+            if j==yMin then
+                auxMatriz = "["
+            elseif j>yMin then
+                auxMatriz = ",["
+            end
             for i=xMin, xLen, downsample do
                 local r,g,b,palette = emu.getscreenpixel(i-1,j-1,true)
-                local pixelColor = {r,g,b}
-                table.insert( auxMatriz, pixelColor)
+                --local pixelColor = {r,g,b}
+                local pixelColor = "["..r..","..g..","..b.."]"
+                --table.insert( auxMatriz, pixelColor)
+                if i > xMin then
+                    auxMatriz = auxMatriz..","..(0.299*r + 0.587*g + 0.114*b)
+                elseif i == xMin then
+                    auxMatriz = auxMatriz..(0.299*r + 0.587*g + 0.114*b)
+                end
             end
-            table.insert( matriz, auxMatriz)
+            --table.insert( matriz, auxMatriz)
+            matriz = matriz..auxMatriz.."]"
         end
     end
     
-
-    return matriz
+    return string.format( '"matriz":%s]', matriz)
 end
 
 function sendMessage(message)
     --print(matrix)
     --print('SendMessage')
-    local  operation = json.encode(message);
+    --local operation = json.encode(message);
     --local compressed = assert(lualzw.compress(operation))
     --print('Compressed: '.. string.len( compressed ));
     --print('Len: '..tostring(string.len( operation )));
-    sock2:send('json'..operation)
+    sock2:send(message)
     
 end
 
@@ -95,7 +120,6 @@ print("Connected", sock2, err2)
 
 function read_memory()
     local playerPosition = ((memory.readbyte(0x006D)*255) + memory.readbyte(0x0086))
-    local enemyPosition = (memory.readbyte(0x006E)*255 + memory.readbyte(0x0087))
     return {
         reward = playerPosition,
         endgame = memory.readbyte(0x000E),
@@ -104,24 +128,27 @@ function read_memory()
 end
 
 Operation = {
+    lastAction='',
     menu = {
         getScreenShot = function (params)
             local matriz = getMatrizScreen(params)
-            sendMessage({matriz=matriz})
+            sendMessage(matriz)
         end,
         nextStep = function (params)
             joypadControll = joypad.get(PLAYER_NUMBER)
+            if Operation.lastAction ~= '' then
+                print('Last: '.. tostring( Operation.lastAction ))
+                joypadControll[Operation.lastAction] = false
+            end
             joypadControll[params['press']] = true
             joypad.set(PLAYER_NUMBER, joypadControll)
+            Operation.lastAction=params['press']
 
             local mem = read_memory()
 
-            local map = {
-                newState = getMatrizScreen(params['screenshot_params']),
-                endgame = mem.endgame,
-                reward = mem.reward
-            }
-            sendMessage(json.encode(map))
+            local map = string.format( '{%s,"endgame":%d,"reward":%d}',getMatrizScreen(params['screenshot_params']), mem.endgame, mem.reward) 
+            sendMessage(map)
+            emu.frameadvance()
         end
     }
 }
@@ -156,9 +183,7 @@ end
 
 function main()
     while true do
-        emu.frameadvance()
         reciveCommands()
-        socket.sleep(0.25)
     end
 end
 --gui.register(reciveCommands)
