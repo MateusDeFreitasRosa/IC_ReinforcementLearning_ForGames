@@ -1,7 +1,7 @@
 local socket = require("socket.core")
 local json = require("json2020")
 PLAYER_NUMBER = 1;
-
+local obj
 
 function connect(address, port, laddress, lport)
     local sock, err = socket.tcp()
@@ -114,7 +114,7 @@ function sendMessage(message)
 end
 
 sock2, err2 = connect("127.0.0.1", 12345)
-sock2:settimeout(0)
+sock2:settimeout(0.000001)
 print("Connected", sock2, err2)
 
 
@@ -124,7 +124,6 @@ function read_memory()
         reward = playerPosition,
         endgame = memory.readbyte(0x000E),
     }
-    
 end
 
 Operation = {
@@ -135,20 +134,25 @@ Operation = {
             sendMessage(matriz)
         end,
         nextStep = function (params)
-            joypadControll = joypad.get(PLAYER_NUMBER)
-            if Operation.lastAction ~= '' then
-                print('Last: '.. tostring( Operation.lastAction ))
-                joypadControll[Operation.lastAction] = false
+            if params['action'] then
+                joypadControll = joypad.get(PLAYER_NUMBER)
+                if Operation.lastAction ~= '' then
+                    joypadControll[Operation.lastAction] = false
+                end
+                joypadControll[params['action']] = true
+                joypad.set(PLAYER_NUMBER, joypadControll)
+                Operation.lastAction=params['action']
+
             end
-            joypadControll[params['press']] = true
-            joypad.set(PLAYER_NUMBER, joypadControll)
-            Operation.lastAction=params['press']
 
             local mem = read_memory()
 
             local map = string.format( '{%s,"endgame":%d,"reward":%d}',getMatrizScreen(params['screenshot_params']), mem.endgame, mem.reward) 
             sendMessage(map)
             emu.frameadvance()
+        end,
+        reset = function (params)
+            Operation:reset(params)
         end
     }
 }
@@ -157,11 +161,17 @@ function Operation:execute(operation)
     self.menu[decode_string['operation']](decode_string['params'])
 end
 
+function Operation:reset(params)
+    --local obj = savestate.create(1)
+    savestate.load(obj)
+    self.menu['nextStep'](params)
+end
+
 function reciveCommands()
     local message, err, part = sock2:receive('*all')
     --print('Message: '..(message or 'nil'))
     --print('Error: '..(err or 'nil'))
-    print('Part: '..(part or 'nil'))
+    --print('Part: '..(part or 'nil'))
     if not message then
         message = part
     end
@@ -182,6 +192,8 @@ function teste()
 end
 
 function main()
+    obj = savestate.create(1)
+    savestate.save(obj)
     while true do
         reciveCommands()
     end

@@ -17,6 +17,7 @@ class Server():
         self.conn = self.waitForConnection()
         self.buff_size = 1024
     
+    
     def waitForConnection(self,):
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         #s.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
@@ -26,17 +27,26 @@ class Server():
         print("Waiting connection from emulator...")
         conn, addr = s.accept()
         conn.setblocking(4)
-        conn.settimeout(3)
+        conn.settimeout(1)
         print("Connected: ", conn)
         return conn
         #callbacksThread = startCallbacksThread()
         #print("Thread for listening callbacks from emulator started")
         
+    def converToJson(self,string):
+        a = string.decode()
+        return json.loads(a)
+    
     def sendCommandAndReceiveOperation(self, message):
-        self.conn.send(message.encode('utf-8'))
-        data = self.recvall()
-        #data = json.loads(data.decode())
-        return data
+        try:
+            self.conn.send(message.encode('utf-8'))
+            data = self.recvall()
+            #data = json.loads(data.decode())
+            return self.converToJson(data)
+        except Exception as e:
+            print('Requisitando novamente {}'.format(e))
+            return self.sendCommandAndReceiveOperation(message)
+            
         
     def receiveMessage(self,):
         data = None
@@ -56,7 +66,54 @@ class Server():
                 break
         return data        
 
-
+    def step(self, action=None, grayscale=False, downsample=1, min_x=None, max_x=None, min_y=None, max_y=None):
+        
+        if action == None:
+            raise Exception('action can\'t be None.')
+        
+        op = {}
+        op['operation'] = 'nextStep'
+        op['params'] = {}
+        op['params']['screenshot_params'] = {}
+        op['params']['action'] = action
+        op['params']['screenshot_params']['grayscale'] = grayscale
+        op['params']['screenshot_params']['down_sample'] = downsample
+        if min_y != None:
+            op['params']['screenshot_params']['len_min_y'] = min_y
+        if max_y != None:
+            op['params']['screenshot_params']['len_max_y'] = max_y
+        if min_x != None:
+            op['params']['screenshot_params']['len_min_x'] = min_x
+        if max_x != None:
+            op['params']['screenshot_params']['len_max_y'] = max_x
+        
+        return self.sendCommandAndReceiveOperation(json.dumps(op))
+        
+    def reset(self, loadState=None, grayscale=False, downsample=1, min_x=None, max_x=None, min_y=None, max_y=None):
+        try:
+            
+            op = {}
+            op['operation'] = 'reset'
+            op['params'] = {}
+            op['params']['file_state'] = loadState
+            op['params']['screenshot_params'] = {}
+            op['params']['screenshot_params']['grayscale'] = grayscale
+            op['params']['screenshot_params']['down_sample'] = downsample
+            if min_y != None:
+                op['params']['screenshot_params']['len_min_y'] = min_y
+            if max_y != None:
+                op['params']['screenshot_params']['len_max_y'] = max_y
+            if min_x != None:
+                op['params']['screenshot_params']['len_min_x'] = min_x
+            if max_x != None:
+                op['params']['screenshot_params']['len_max_y'] = max_x
+                
+            return self.sendCommandAndReceiveOperation(json.dumps(op))
+        except Exception as e:
+            print(e)            
+        
+        
+        
     def closeServer(self,):
         self.conn.close()
     
