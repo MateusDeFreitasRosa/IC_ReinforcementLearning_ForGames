@@ -20,8 +20,8 @@ while true do
   -- RAM Map: https://datacrystal.romhacking.net/wiki/Castlevania:RAM_map
   -- Goal: increase position X?
   gui.text(50,40, "pos Y = " .. memory.readbyte(0x0003F)); -- get position Y from Simon Belmont
-  gui.text(50,50, "pos X = " .. memory.readbyte(0x00040)); -- get position X from Simon Belmont
-  gui.text(50,60, "pt2 X = " .. memory.readbyte(0x00041)); -- accumulator for X from Simon Belmont (+1 on 0040 overflow)
+  gui.text(50,50, "pos X = " .. (memory.readbyte(0x006D)*255) + memory.readbyte(0x0086)); -- get position X from Simon Belmont
+  --gui.text(50,60, "pt2 X = " .. memory.readbyte(0x00041)); -- accumulator for X from Simon Belmont (+1 on 0040 overflow)
   
   --file_ready = io.open('lua_ready.txt', 'w');
   --io.output(file_ready);  -- sets the default output file as cvram.txt
@@ -33,31 +33,6 @@ while true do
   --lua_ready = io.read();
   --io.close(file01);
   --gui.text(50,70, "lua_ready = " .. lua_ready);
-
-  
-
-  if (lua_ready ~= 'can') then 
-    file = io.open("cvram.txt", "a");  -- Opens a file in append mode
-    io.output(file);  -- sets the default output file as cvram.txt
-    io.write(memory.readbyte(0x0003F) .. " " .. memory.readbyte(0x00040) .. " " .. memory.readbyte(0x00041) .. "\n" ); -- appends a word test to the last line of the file
-    io.close(file);
-  
-    file_ready = io.open('lua_ready.txt', 'w');
-    io.output(file_ready);  -- sets the default output file as cvram.txt
-    io.write("can");
-    io.close(file_ready);
- 
-
-    file01 = io.open('lua_ready.txt', 'w');
-    io.input(file01);
-    lua_ready = io.read();
-    io.close(file01);
-    gui.text(50,70, "lua_ready = " .. lua_ready);
-    
-    gui.savescreenshotas("cv_screen.png");
-  end
-  
-
   emu.frameadvance() -- This essentially tells FCEUX to keep running
 
 end

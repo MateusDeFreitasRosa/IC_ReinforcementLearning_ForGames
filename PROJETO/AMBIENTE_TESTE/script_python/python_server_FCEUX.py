@@ -9,32 +9,36 @@ import time
 import json
 import pickle
 import matplotlib.pyplot as plt
+import time
 
 
-
+    
 class Server():
     def __init__(self):
-        self.conn = self.waitForConnection()
         self.buff_size = 1024
-    
-    
+        self.conn = self.waitForConnection()
+
+
     def waitForConnection(self,):
-        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        #s.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
-        s.bind(("127.0.0.1", 12345))
-        s.listen(1)
-        s.setblocking(1)
-        print("Waiting connection from emulator...")
-        conn, addr = s.accept()
-        conn.setblocking(4)
-        conn.settimeout(1)
-        print("Connected: ", conn)
-        return conn
-        #callbacksThread = startCallbacksThread()
-        #print("Thread for listening callbacks from emulator started")
+        try:
+            s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            #s.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+            s.bind(("127.0.0.1", 12345))
+            s.listen(1)
+            s.setblocking(1)
+            print("Waiting connection from emulator...")
+            conn, addr = s.accept()
+            conn.setblocking(4)
+            conn.settimeout(1)
+            print("Connected: ", conn)
+            return conn
+            #callbacksThread = startCallbacksThread()
+            #print("Thread for listening callbacks from emulator started")
+        except Exception as e:
+            print('Error: {}'.format(e))
         
     def converToJson(self,string):
-        a = string.decode()
+        a = string.decode('utf-8')
         return json.loads(a)
     
     def sendCommandAndReceiveOperation(self, message):
@@ -44,7 +48,12 @@ class Server():
             #data = json.loads(data.decode())
             return self.converToJson(data)
         except Exception as e:
-            print('Requisitando novamente {}'.format(e))
+            print('Requisitando novamente {}'.format(str(type(e))))
+            if (str(type(e)) != "<class 'socket.timeout'>"):
+                self.closeServer()
+                return
+            
+            time.sleep(.01)
             return self.sendCommandAndReceiveOperation(message)
             
         
@@ -113,13 +122,13 @@ class Server():
             print(e)            
         
         
-        
     def closeServer(self,):
+        self.conn.shutdown(socket.SHUT_RDWR)
         self.conn.close()
     
 
-if __name__ == "__main__":
+'''if __name__ == "__main__":
     server = Server()
     #server.sendCommand('mensagem')
     while True:
-        time.sleep(60)        
+        time.sleep(60) '''       

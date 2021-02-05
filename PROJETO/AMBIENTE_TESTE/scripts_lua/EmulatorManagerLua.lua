@@ -1,5 +1,5 @@
 local socket = require("socket.core")
-local json = require("json2020")
+local json = require("json")
 PLAYER_NUMBER = 1;
 local obj
 
@@ -114,7 +114,7 @@ function sendMessage(message)
 end
 
 sock2, err2 = connect("127.0.0.1", 12345)
-sock2:settimeout(0.000001)
+sock2:settimeout(0.001)
 print("Connected", sock2, err2)
 
 
@@ -146,6 +146,7 @@ Operation = {
             end
 
             local mem = read_memory()
+            --print(getMatrizScreen(params['screenshot_params']))
 
             local map = string.format( '{%s,"endgame":%d,"reward":%d}',getMatrizScreen(params['screenshot_params']), mem.endgame, mem.reward) 
             sendMessage(map)

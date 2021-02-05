@@ -15,14 +15,14 @@ callbacksThread = None
 
 class FceuxManager():
     def __init__(self):
-        self.fceuxPath = '../AMBIENTE TESTE/FCEUX//fceux.exe'
-        self.gamePath = '../AMBIENTE TESTE/games/Castlevania.nes'
-        self.scriptPath = '../AMBIENTE TESTE/scripts_lua/CastlevaniaRamWatch.lua'
-        self.scriptArgument = '-lua: '+self.scriptPath
+        self.fceuxPath = 'C:/Users/mateu/Documents/GitHub/IC_ReinforcementLearning_ForGames/PROJETO/AMBIENTE_TESTE/FCEUX/fceux.exe'
+        self.gamePath = 'C:/Users/mateu/Documents/GitHub/IC_ReinforcementLearning_ForGames/PROJETO/AMBIENTE_TESTE/games/Castlevania.nes'
+        self.scriptPath = 'C:/Users/mateu/Documents/GitHub/IC_ReinforcementLearning_ForGames/PROJETO/AMBIENTE_TESTE/scripts_lua/EmulatorManagerLua.lua'
+        self.scriptArgument = ' -lua '+self.scriptPath+' '
     
     def start(self):
-       subprocess.call([self.fceuxPath, self.gamePath,], shell=True, start_new_session=True),
-       self.startServer()
+       subprocess.call([self.fceuxPath, self.scriptArgument, self.gamePath], shell=True, start_new_session=True),
+       #self.startServer()
     
     def startServer(self,):
         print('Start py-code')
@@ -48,6 +48,8 @@ class FceuxManager():
        
 if __name__ == '__main__':
     fceuxManager = FceuxManager()
-    fceuxManager.start()
-    while True:
-        time.sleep(60)
+    try:
+        fceuxManager.start()
+    except Exception as e:
+        print(e)
+        
