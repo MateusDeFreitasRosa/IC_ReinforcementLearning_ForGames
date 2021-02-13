@@ -90,7 +90,7 @@ qntUpdate=0
 tamMemoryK = 150 # O tamanho da memoria será esse valor multiplicado por 1000.
 
 game = 'SuperMarioBross'
-diretorioInProcess = "./currentProcessICMinihTesteTES/"+game+"/"
+diretorioInProcess = ".process/currentProcessIC/"+game+"/"
 total_reward_game = []
 data_average_reward = []
 trainsPerEpisode = []
@@ -299,7 +299,7 @@ class Nintendo():
         self.env = Server()
         self.sample_batch_size = 32
         self.episodes = 5000000
-        self.action_size = 3
+        self.action_size = 4
         self.state_size = (80,80)
         self.agent = Agent(self.state_size, self.action_size)
         self.number_print = 0
@@ -316,12 +316,33 @@ class Nintendo():
 
         self.frames_in_atual_episode=0
         self.seconds_in_atual_episode=0
+        
+    def registerMap(self):
+        '''
+        0x00 = standing,
+        0x01-03 = walk,
+        0x04 = jump and crouch,
+        0x05-07 = whip/sub-weapon,
+        0x0D-0E = walk up stairs,
+        0x0F-10 = walk down stairs,
+        0x12 = hurt
+        0x1C = dead
+        0x1D = collapsing
+        '''
+        mapMemory = {
+            'stateFrame': '0x0159',
+            'reward': '(0x0041*255) + 0x0040',
+            #'damage': '0x0055 * 255'
+        }
+        
+        self.env.registerMap(mapMemory)
     
     def actions(self,n):
+        # up, down, left, right, A, B, start, select.
         if n > 5:
             print('Numero maior que quantidade de buttões')
             return
-        return ['left', 'right', 'A'][n]
+        return ['left', 'right', 'A', 'B'][n]
     
     def restart_chronometer(self):
         self.frames_in_atual_episode=0
@@ -392,22 +413,27 @@ class Nintendo():
                 greater_distance = 0
                 
                 while not done:
-                                        
                     #if i_episodes > 600 or not TRAIN:
                     #self.env.render()
                     action = self.agent.act(state)
                     js = self.env.step(self.actions(action), grayscale=True, downsample=3, min_y=45, max_y=230)
                     next_state = js['matriz']
+                    js = js['retorno']
+                    
+                    #print('Reward: {}  - Endgame: {} '.format(js['reward'], js['stateFrame']))
                     if js['reward'] > last_reward:
                         reward = 1
                     elif js['reward'] == last_reward:
-                        reward = -0.2
+                        reward = 0
                     else:
                         reward = -1
                     last_reward = js['reward']
                     
-                    if js['endgame'] != 8:
+                    #print('Reward: {} - Endgame: {}'.format(js['reward'], js['endgame']))
+                    if js['stateFrame'] == 28:
                         done = True
+                        reward = -1
+                    elif js['stateFrame'] == 18:
                         reward = -1
                     
                     if last_reward > greater_distance:
@@ -418,7 +444,8 @@ class Nintendo():
                     #if total_reward >= 5:
                     #    self.smile_for_the_photo()
                     next_state = self.preprocess_img(next_state)
-                    self.agent.remember(state, action, reward, next_state, done)
+                    if 'stateFrame' in js and js['stateFrame'] != 28: # It's mean, game is occurring
+                        self.agent.remember(state, action, reward, next_state, done)
                     frame_duration_episode+=1
                     state = next_state
                     
@@ -461,4 +488,5 @@ class Nintendo():
             
 if __name__ == '__main__':
     nintendo = Nintendo()
+    nintendo.registerMap()
     nintendo.run()

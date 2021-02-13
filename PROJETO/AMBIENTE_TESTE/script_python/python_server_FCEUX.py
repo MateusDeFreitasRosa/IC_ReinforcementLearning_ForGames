@@ -121,6 +121,13 @@ class Server():
         except Exception as e:
             print(e)            
         
+    def registerMap(self, mapMemory):
+        self.sendCommandAndReceiveOperation(json.dumps(
+            {'operation': 'registerMap',
+          'params': {
+            'tableMap': mapMemory
+          }
+        }))
         
     def closeServer(self,):
         self.conn.shutdown(socket.SHUT_RDWR)
