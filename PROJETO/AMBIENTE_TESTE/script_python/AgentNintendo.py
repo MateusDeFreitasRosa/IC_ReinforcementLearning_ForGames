@@ -90,7 +90,7 @@ qntUpdate=0
 tamMemoryK = 150 # O tamanho da memoria será esse valor multiplicado por 1000.
 
 game = 'SuperMarioBross'
-diretorioInProcess = ".process/currentProcessIC/"+game+"/"
+diretorioInProcess = "process/currentProcessIC/"+game+"/"
 total_reward_game = []
 data_average_reward = []
 trainsPerEpisode = []

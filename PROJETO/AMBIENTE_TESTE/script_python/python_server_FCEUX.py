@@ -11,8 +11,7 @@ import pickle
 import matplotlib.pyplot as plt
 import time
 
-
-    
+   
 class Server():
     def __init__(self):
         self.buff_size = 1024
@@ -77,26 +76,29 @@ class Server():
 
     def step(self, action=None, grayscale=False, downsample=1, min_x=None, max_x=None, min_y=None, max_y=None):
         
-        if action == None:
-            raise Exception('action can\'t be None.')
-        
-        op = {}
-        op['operation'] = 'nextStep'
-        op['params'] = {}
-        op['params']['screenshot_params'] = {}
-        op['params']['action'] = action
-        op['params']['screenshot_params']['grayscale'] = grayscale
-        op['params']['screenshot_params']['down_sample'] = downsample
-        if min_y != None:
-            op['params']['screenshot_params']['len_min_y'] = min_y
-        if max_y != None:
-            op['params']['screenshot_params']['len_max_y'] = max_y
-        if min_x != None:
-            op['params']['screenshot_params']['len_min_x'] = min_x
-        if max_x != None:
-            op['params']['screenshot_params']['len_max_y'] = max_x
-        
-        return self.sendCommandAndReceiveOperation(json.dumps(op))
+        try:
+            if action == None:
+                raise Exception('action can\'t be None.')
+            
+            op = {}
+            op['operation'] = 'nextStep'
+            op['params'] = {}
+            op['params']['screenshot_params'] = {}
+            op['params']['action'] = action
+            op['params']['screenshot_params']['grayscale'] = grayscale
+            op['params']['screenshot_params']['down_sample'] = downsample
+            if min_y != None:
+                op['params']['screenshot_params']['len_min_y'] = min_y
+            if max_y != None:
+                op['params']['screenshot_params']['len_max_y'] = max_y
+            if min_x != None:
+                op['params']['screenshot_params']['len_min_x'] = min_x
+            if max_x != None:
+                op['params']['screenshot_params']['len_max_y'] = max_x
+            
+            return self.sendCommandAndReceiveOperation(json.dumps(op))
+        except Exception as e:
+            print(e)
         
     def reset(self, loadState=None, grayscale=False, downsample=1, min_x=None, max_x=None, min_y=None, max_y=None):
         try:
@@ -124,18 +126,13 @@ class Server():
     def registerMap(self, mapMemory):
         self.sendCommandAndReceiveOperation(json.dumps(
             {'operation': 'registerMap',
-          'params': {
-            'tableMap': mapMemory
-          }
+              'params': {
+                  'tableMap': mapMemory
+            }
         }))
         
     def closeServer(self,):
         self.conn.shutdown(socket.SHUT_RDWR)
         self.conn.close()
     
-
-'''if __name__ == "__main__":
-    server = Server()
-    #server.sendCommand('mensagem')
-    while True:
-        time.sleep(60) '''       
+  
