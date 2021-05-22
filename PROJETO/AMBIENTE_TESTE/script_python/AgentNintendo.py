@@ -101,7 +101,7 @@ class Agent():
         self.state_size         = state_size
         self.action_size        = action_size
         self.memory             = deque(maxlen=tamMemoryK*1000) if TRAIN else deque(maxlen=5)
-        self.learning_rate      = 0.00005
+        self.learning_rate      = 0.00001
         self.gamma              = 0.97
         self.exploration_rate   = .65
         self.exploration_min    = 0.05

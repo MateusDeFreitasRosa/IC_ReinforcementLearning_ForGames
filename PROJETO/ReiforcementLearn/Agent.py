@@ -89,7 +89,7 @@ UPDATE_TARGET_MODEL = 1000
 qntUpdate=0
 tamMemoryK = 150 # O tamanho da memoria será esse valor multiplicado por 1000.
 
-game = 'Breakout-v0'
+game = 'Pong-v0'
 diretorioInProcess = "./currentProcessICMinih/"+game+"/"
 total_reward_game = []
 data_average_reward = []
@@ -106,7 +106,7 @@ class Agent():
         self.exploration_rate   = 1.0
         self.exploration_min    = 0.05
         self.exploration_decay  = 1.0e-5
-        self.k_frames           = 4
+        self.k_frames           = 4 
         self.frame_height       = self.state_size[0]
         self.frame_width        = self.state_size[1]
         self.brain              = self._build_model()
@@ -290,7 +290,7 @@ class Breakout():
     def __init__(self):
         self.env = gym.make(game)
         self.sample_batch_size = 32
-        self.episodes = 5000000
+        self.episodes = 900
         self.action_size = self.env.action_space.n
         self.state_size = (80,80)
         self.agent = Agent(self.state_size, self.action_size)
@@ -304,6 +304,8 @@ class Breakout():
         self.freq_update=4
         self.qnt_train=0
         self.epochs_to_save = 50
+        
+        self.canSave=True
         self.time_train_init = time.time()
 
         self.frames_in_atual_episode=0
@@ -346,7 +348,8 @@ class Breakout():
     
     def save_image_epoch(self, gif_to_save, epoch):
         
-        if (epoch % self.epochs_to_save == 0):
+        
+        if (self.canSave and len(gif_to_save) > 0):
             diretorio = diretorioInProcess+'/movies/'
             if not os.path.isdir(diretorio):
                 os.makedirs(diretorio)
@@ -356,6 +359,7 @@ class Breakout():
     
             imageio.mimwrite(diretorio+str(epoch)+'.mp4', gif_to_save , fps = 75)
             print('Gif Salvo') 
+            self.canSave = False
             
     def run(self):
         global total_reward_game, data_average_reward, trainsPerEpisode
@@ -385,8 +389,9 @@ class Breakout():
                     #self.replay_bestPlay.append(next_state)
                     #if total_reward >= 5:
                     #    self.smile_for_the_photo()
-                    if (i_episodes % self.epochs_to_save == 0):
+                    if (self.canSave):
                         atual_epoch.append(np.asarray(next_state))
+
                     next_state = self.preprocess_img(next_state)
                     self.agent.remember(state, action, reward, next_state, done)
                     state = next_state
@@ -406,6 +411,8 @@ class Breakout():
                 trainsPerEpisode.append(self.qnt_train)
                 data_average_reward.append(mediaUltimosJogos)
                 if TRAIN and self.frame_number > OBSERVER:
+                    if i_episodes % 100 == 0:
+                        self.canSave=True
                     self.save_image_epoch(atual_epoch, i_episodes)   
                     
                     if mediaUltimosJogos > self.best_score and self.frame_number > OBSERVER:
@@ -418,7 +425,7 @@ class Breakout():
             plt.plot(trainsPerEpisode, data_average_reward)
             plt.xlabel('Trains')
             plt.ylabel('Reward')
-            
+            plt.show()
             #plt.title('Time of train: (Minih) {}'.format(time.time() - self.time_train_init))
             #print(self.formatTimeBr((time.time() - self.time_train_init)))
             if TRAIN:
