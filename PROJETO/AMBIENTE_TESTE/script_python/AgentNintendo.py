@@ -5,13 +5,14 @@ Created on Thu Mar 26 10:10:11 2020
 @author: mateu
 """
 
-import gym
+#import gym
 import cv2
 import numpy as np
 from collections import deque
 from keras.models import Sequential
-from keras.layers import Dense, Conv2D, MaxPooling2D, Flatten
+from keras.layers import Dense, Conv2D, Flatten
 from keras.optimizers import Adam
+import pandas as pd
 import os
 import random
 import matplotlib.pyplot as plt
@@ -91,9 +92,19 @@ tamMemoryK = 150 # O tamanho da memoria será esse valor multiplicado por 1000.
 
 game = 'SuperMarioBross'
 diretorioInProcess = "process/currentProcessIC/"+game+"/"
+name_df_backup = 'backup.csv'
+
 total_reward_game = []
 data_average_reward = []
 trainsPerEpisode = []
+time_per_episode = []
+time_since_begin = []
+loss_episode = []
+eps_episode = []
+space_episode = []
+fps_episode = []
+episode = 0
+episode_list = []
 
 class Agent(): 
     def __init__(self, state_size, action_size,):
@@ -149,41 +160,38 @@ class Agent():
         model.summary()
         if os.path.isfile(self.weight_backup):
             model.load_weights(self.weight_backup)
-            self.exploration_rate = self.exploration_min
+            #self.exploration_rate = self.exploration_min
             self.load_data()
         return model
     
     def load_data(self):
-        global data_average_reward, total_reward_game, trainsPerEpisode
-        if os.path.isdir(diretorioInProcess):
-            with open(diretorioInProcess+"avarageProcess.txt", "rb") as avarageDocument:
-                data_average_reward = pickle.load(avarageDocument)
-            with open(diretorioInProcess+"lastRewards.txt", "rb") as lastRewards:
-                total_reward_game = pickle.load(lastRewards)
-            with open(diretorioInProcess+"trainsPerEpisode.txt", "rb") as trainsPerEpisodeDocument:
-                trainsPerEpisode = pickle.load(trainsPerEpisodeDocument)
+        global data_average_reward, total_reward_game, trainsPerEpisode, episode, OBSERVER
+        df = pd.read_csv(diretorioInProcess+name_df_backup, sep=';')
+        df['SPACE'] = df['SPACE'].astype(np.float32)
+        df['EXPLORATION'] = df['EXPLORATION'].astype(np.float32)
+        
+        episode = list(df.index)[-1]
+        self.exploration_rate = list(df['EXPLORATION'])[-1]
+        OBSERVER = (list(df['SPACE'])[-1] * (tamMemoryK*1000))
+        print('LastRewards: {}'.format(total_reward_game))
+        print('Average: {}'.format(data_average_reward))
+        
+        input()
     
-            print('LastRewards: {}'.format(total_reward_game))
-            print('Average: {}'.format(data_average_reward))
-            
-            input()
-    
-    def save_model(self, avarageList, lastRewards, trainsPerEpisode):   
+    def save_model(self, avarageList, rewards, trainsPerEpisode, time_per_ep, loss, eps, space, fps, episode):   
        
         if not os.path.isdir(diretorioInProcess):
             os.makedirs(diretorioInProcess)
             
         self.brain.save(self.weight_backup)
-         
-        with open(diretorioInProcess+"avarageProcess.txt", "wb") as avarageDocument:
-            pickle.dump(avarageList, avarageDocument)
-            
-        with open(diretorioInProcess+"lastRewards.txt", "wb") as lastRewardsDocument:
-            pickle.dump(lastRewards, lastRewardsDocument)
+
+
+        print('Time_per_ep: {}'.format(time_per_ep))
+        df = pd.DataFrame({'EPISODE': episode, 'AVARAGE_REWARDS': avarageList, 'REWARDS':  rewards, 
+                           'TRAINS_PER_EPISODE': trainsPerEpisode, 'TIME_PER_EPISODE': time_per_ep,
+                           'LOSS': loss, 'EXPLORATION': eps, 'SPACE': space, 'FPS': fps})
         
-        with open(diretorioInProcess+"trainsPerEpisode.txt", "wb") as trainsPerEpisodeDocument:
-            pickle.dump(trainsPerEpisode, trainsPerEpisodeDocument)
-        
+        df.to_csv(diretorioInProcess+name_df_backup, sep=';', mode='a', float_format='%.6f', index=False)
         
     def get_last_k_frames(self, state):
         frames = np.empty((self.k_frames, self.frame_height, self.frame_width))
@@ -297,6 +305,7 @@ class Nintendo():
     
     def __init__(self):
         self.env = Server()
+        self.k_episodes_to_save = 2
         self.sample_batch_size = 32
         self.episodes = 5000000
         self.action_size = 4
@@ -319,6 +328,7 @@ class Nintendo():
         
     def registerMap(self):
         '''
+        ** Castelvania **
         0x00 = standing,
         0x01-03 = walk,
         0x04 = jump and crouch,
@@ -328,11 +338,23 @@ class Nintendo():
         0x12 = hurt
         0x1C = dead
         0x1D = collapsing
-        '''
+        
         mapMemory = {
             'stateFrame': '0x0159',
             'reward': '(0x0041*255) + 0x0040',
             #'damage': '0x0055 * 255'
+        }
+        '''
+        
+        
+        # ** Super Mario Bros **
+        '''
+            0x006D	Player horizontal position in level
+            0x0086	Player x position on screen
+        '''
+        mapMemory = {
+            'stateFrame': '0x0001',
+            'reward': '(0x006D*255) + 0x0086',
         }
         
         self.env.registerMap(mapMemory)
@@ -381,7 +403,7 @@ class Nintendo():
     
     def save_image_epoch(self, frame_epochs, epoch):
         
-        gif_to_save = self.agent.get_K_memory_images(frame_epochs)
+        gif_to_save = np.asarray(self.agent.get_K_memory_images(frame_epochs), dtype=np.uint8)
         
         diretorio = diretorioInProcess+'/movies/'
         if not os.path.isdir(diretorio):
@@ -394,10 +416,15 @@ class Nintendo():
         print('Gif Salvo') 
             
     def run(self):
-        global total_reward_game, data_average_reward, trainsPerEpisode
-    
+        global total_reward_game, data_average_reward, trainsPerEpisode, time_per_episode, time_since_begin, \
+            loss_episode, eps_episode, space_episode, fps_episode, episode, episode_list
+        initial_time = time.time()
+        
+        
         try:
             for i_episodes in range(0, self.episodes):
+                episode_initial_time = time.time()
+                
                 js = self.env.reset('unnecessary',grayscale=True, downsample=2, min_y=45, max_y=230)
                 state = js['matriz']
                
@@ -429,12 +456,11 @@ class Nintendo():
                         reward = -1
                     last_reward = js['reward']
                     
-                    #print('Reward: {} - Endgame: {}'.format(js['reward'], js['endgame']))
-                    if js['stateFrame'] == 28:
+                    if js['stateFrame'] == 159:
                         done = True
                         reward = -1
-                    elif js['stateFrame'] == 18:
-                        reward = -1
+                    #elif js['stateFrame'] == 18:
+                    #    reward = -1
                     
                     if last_reward > greater_distance:
                         greater_distance=last_reward
@@ -461,18 +487,44 @@ class Nintendo():
                         
                         self.agent.update_target_model(self.frame_number)
     
+                print('Valor: {}'.format(float(time.time() - episode_initial_time)))
+                time_per_episode.append(float(time.time() - episode_initial_time))
+                time_since_begin.append(float(time.time() - initial_time) )
+                
                 total_reward_game.append(greater_distance)
                 mediaUltimosJogos = np.mean(total_reward_game[-50:])
                 trainsPerEpisode.append(self.qnt_train)
                 data_average_reward.append(mediaUltimosJogos)
+                
+                loss_episode.append(np.mean(history_list))
+                eps_episode.append(exploration)
+                space_episode.append(round(((len(self.agent.memory) / (tamMemoryK*1000)) * 100), 2))
+                fps_episode.append(self.get_frames_per_seconds_in_atual_episode())
+                
+                episode_list.append(episode)
+                
                 if TRAIN and self.frame_number > OBSERVER:
                     #self.save_image_epoch(atual_epoch, i_episodes, reward)   
                     if mediaUltimosJogos > self.best_score and self.frame_number > OBSERVER:
                         self.save_image_epoch(frame_duration_episode, i_episodes)       
                         self.best_score = mediaUltimosJogos
-                        self.agent.save_model(data_average_reward, total_reward_game, trainsPerEpisode)
                         print('Save -> ', end='')
-                print("Episode {}# r: {}# Average: {}# Loss: {:.6} # Train: {} # eps: {:.3}# Space: {}% 'fps: {}:".format(i_episodes, greater_distance, int(data_average_reward[len(data_average_reward)-1]), np.mean(history_list), self.qnt_train, exploration, round(((len(self.agent.memory) / (tamMemoryK*1000)) * 100), 2), self.get_frames_per_seconds_in_atual_episode() ))
+                print("Episode {}# r: {}# Average: {}# Loss: {:.6} # Train: {} # eps: {:.3}# Space: {}% 'fps: {}:".format(episode, greater_distance, int(data_average_reward[len(data_average_reward)-1]), np.mean(history_list), self.qnt_train, exploration, round(((len(self.agent.memory) / (tamMemoryK*1000)) * 100), 2), self.get_frames_per_seconds_in_atual_episode() ))
+                if episode % self.k_episodes_to_save == 0:
+                    print('Saved')
+                    self.agent.save_model(data_average_reward, total_reward_game, trainsPerEpisode, time_per_episode,
+                                              loss_episode, eps_episode, space_episode, fps_episode, episode_list)
+                    total_reward_game = []
+                    data_average_reward = []
+                    trainsPerEpisode = []
+                    time_per_episode = []
+                    time_since_begin = []
+                    loss_episode = []
+                    eps_episode = []
+                    space_episode = []
+                    fps_episode = []
+                    episode_list = []
+                episode += 1
                 self.restart_chronometer()
         finally:
             plt.plot(trainsPerEpisode, data_average_reward)
@@ -483,7 +535,8 @@ class Nintendo():
             #plt.title('Time of train: (Minih) {}'.format(time.time() - self.time_train_init))
             #print(self.formatTimeBr((time.time() - s\elf.time_train_init)))
             if TRAIN:
-                self.agent.save_model(data_average_reward, total_reward_game, trainsPerEpisode)
+                self.agent.save_model(data_average_reward, total_reward_game, trainsPerEpisode, time_per_episode,
+                                              loss_episode, eps_episode, space_episode, fps_episode, episode_list)
             plt.savefig('atualGraph.png')
             
 if __name__ == '__main__':

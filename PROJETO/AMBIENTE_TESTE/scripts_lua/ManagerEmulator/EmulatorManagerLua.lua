@@ -142,7 +142,7 @@ Operation = {
             --local mem = read_memory()
             --print(getMatrizScreen(params['screenshot_params']))
 
-            local map = string.format( '{%s, %s}',getMatrizScreen(params['screenshot_params']), readMemoryMap()) 
+            local map = string.format( '{%s, %s}',getMatrizScreen(params['screenshot_params']), readMemoryMap())
             sendMessage(map)
             emu.frameadvance()
         end,
@@ -152,8 +152,10 @@ Operation = {
         registerMap = function (params)
             --tableMap = params['tableMap'];
             print('Versão lua: ' .. _VERSION);
-            addTableMap(params['tableMap']);
-            sendMessage('{"status": "Success"}');
+            if params['tableMap'] then
+                addTableMap(params['tableMap']);
+                sendMessage('{"status": "Success"}');
+            end
         end
     }
 }

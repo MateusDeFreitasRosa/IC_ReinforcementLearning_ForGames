@@ -1,4 +1,4 @@
-local memoryAcceptedCharacters = {'+', '-', '/', '*', '(', ')', ' ', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'x'}
+local memoryAcceptedCharacters = {'+', '-', '/', '*', ')', '(', ' ', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'x', 'A', 'B', 'C', 'D', 'E', 'F'}
 -- For security only accept string with limited characters, because we use loadstring that is similar to the EVAL in other languages.
 
 local tableMap = {};
@@ -34,6 +34,7 @@ end
 function verifyStringWithAcceptedCharacters(value)
     for character in value:gmatch(".") do
         if (not hasCharacterAccept(character)) then
+            error('Character is not accepted: '..character)
             return false;
         end
     end
@@ -72,6 +73,7 @@ function addTableMap(tableM)
             --print(formatedValue);
         end
     else
+        print('Table: '.. tableM)
         print('Unsafe memory');
         error("Block operation. Only accept: +, -, (, ), /, *, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, x")
     end

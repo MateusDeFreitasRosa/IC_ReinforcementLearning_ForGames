@@ -127,7 +127,7 @@ class Server():
         self.sendCommandAndReceiveOperation(json.dumps(
             {'operation': 'registerMap',
               'params': {
-                  'tableMap': mapMemory
+                  'tableMap': mapMemory,
             }
         }))
         
