@@ -1,0 +1,22 @@
+*** Instalação GPU:
+
+Vídeo tutorial: https://www.youtube.com/watch?v=PlW9zAg4cx8
+Versões CUDA e cuDNN: tensorflow.org/install/source?hl=pt-br
+CUDA: https://developer.nvidia.com/cuda-toolkit-archive
+CUDNN: https://developer.nvidia.com/rdp/cudnn-archive
+
+
+*** Pacotes necessários:
+
+OBS: As vezes é necessário habilitar long_path no regedit !!!
+
+[gym openai] conda install -c conda-forge gym
+[tensorflow] conda install -c conda-forge tensorflow==2.5.0
+[opencv] pip install opencv-python
+[numpy] pip install numpy
+[pandas] pip install pandas
+[matplotlib] pip install matplotlib
+[imageio] conda install -c conda-forge imageio
+[gym-atari] conda install -c conda-forge gym-atari
+[imageio-ffmpeg] pip install imageio-ffmpeg
+
