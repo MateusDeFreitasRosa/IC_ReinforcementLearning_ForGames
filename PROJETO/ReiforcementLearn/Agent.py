@@ -129,29 +129,29 @@ class Agent():
 
 
     def _build_model(self):
-        with tf.device('/gpu:0'):
-            # Neural Net for Deep-Q learning Model
-            model = Sequential()
-                
+        #with tf.device('/gpu:0'):
+        # Neural Net for Deep-Q learning Model
+        model = Sequential()
             
-            ## Create structure of convolucional network.
-            structure_convolucional = experiment_params['structure_neural_network']['conv']
+        
+        ## Create structure of convolucional network.
+        structure_convolucional = experiment_params['structure_neural_network']['conv']
+        
+        for conv in structure_convolucional:
+            model.add(Conv2D(conv['filter'], conv['kernel_size'], strides=conv['strides'],  input_shape = (self.state_size[0], self.state_size[1], self.k_frames),
+                             activation=conv['activation'], padding=conv['padding']))
+        
+        model.add(Flatten()) # Transform image resulting of convolution to 1 dimension
+        
+        ## Create structure of neural network.
+        structure_nn = experiment_params['structure_neural_network']['neural_network']
+        
+        for nn in structure_nn:
+            k_init = nn['kernel_initializer'] if 'kernel_initializer' in nn else 'glorot_uniform'
+            model.add(Dense(nn['neurons'], activation=nn['activation'], kernel_initializer=k_init))
             
-            for conv in structure_convolucional:
-                model.add(Conv2D(conv['filter'], conv['kernel_size'], strides=conv['strides'],  input_shape = (self.state_size[0], self.state_size[1], self.k_frames),
-                                 activation=conv['activation'], padding=conv['padding']))
-            
-            model.add(Flatten()) # Transform image resulting of convolution to 1 dimension
-            
-            ## Create structure of neural network.
-            structure_nn = experiment_params['structure_neural_network']['neural_network']
-            
-            for nn in structure_nn:
-                k_init = nn['kernel_initializer'] if 'kernel_initializer' in nn else 'glorot_uniform'
-                model.add(Dense(nn['neurons'], activation=nn['activation'], kernel_initializer=k_init))
-                
-            model.add(Dense(self.action_size, activation='linear'))
-            model.compile(loss=huber_loss_mean, optimizer=Adam(lr=self.learning_rate))
+        model.add(Dense(self.action_size, activation='linear'))
+        model.compile(loss=huber_loss_mean, optimizer=Adam(lr=self.learning_rate))
             
         model.summary()
         if self.has_load_data():
@@ -308,12 +308,15 @@ class Breakout():
                 os.makedirs(values)
         
     def reset_results(self):
-        global reward_current_episode, train_current_episode, current_time_episode, average_loss, average_fps_current_episode
+        global reward_current_episode, train_current_episode, current_time_episode, average_loss, \
+        average_fps_current_episode, current_exploration
+        
         reward_current_episode = []
         train_current_episode = []
         current_time_episode = []
         average_loss = []
         average_fps_current_episode = []
+        current_exploration = []
         
         
     def add_new_result(self, reward, train, time, loss, exploration, fps):
@@ -435,17 +438,17 @@ class Breakout():
                 while not done:
                                         
                     #if i_episodes > 600 or not TRAIN:
-                    self.env.render()
+                    #self.env.render()
                     action = self.agent.act(state)
                     next_state, reward, done, info = self.env.step(action)
                     
                     reward = np.sign(reward)
                     total_reward+=reward
            
-            
-                    current_images_episode.append(next_state)
-
                     next_state = self.preprocess_img(next_state)
+                    
+                    current_images_episode.append(next_state)
+                    
                     self.agent.remember(state, action, reward, next_state, done)
                     state = next_state
                         
@@ -467,7 +470,8 @@ class Breakout():
                         
                         self.save_image_epoch( current_images_episode, i_episodes)   
                     
-                    self.add_new_result(total_reward, (self.current_frame / self.frames_skip), time.time(), np.mean(history_list), self.get_frames_per_seconds_in_atual_episode())
+                    self.add_new_result(total_reward, (self.current_frame / self.frames_skip), time.time(), 
+                                        np.mean(history_list), exploration, self.get_frames_per_seconds_in_atual_episode())
                    
                     if total_reward > self.best_score and self.current_frame > OBSERVER:
                             self.best_score = total_reward

@@ -13,13 +13,13 @@ experiment_params = {
     
     ''',
     
+    
     'sample_batch_size': 32,
     'epochs_to_save_results': 2,
     'freq_update_nn': 1000, # *
     'frames_skip': 1,
     'down_sample': 2, #
     'episodes': 1000,
-    
     
     
     'dirs': {
