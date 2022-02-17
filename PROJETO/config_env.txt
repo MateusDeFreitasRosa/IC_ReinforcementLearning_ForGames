@@ -10,6 +10,11 @@ CUDNN: https://developer.nvidia.com/rdp/cudnn-archive
 
 OBS: As vezes é necessário habilitar long_path no regedit !!!
 
+** CPU
+	Keras: 2.2.4
+	Tensorflow: 1.13.1
+**
+
 [gym openai] conda install -c conda-forge gym
 [tensorflow] conda install -c conda-forge tensorflow==2.5.0
 [opencv] pip install opencv-python
@@ -19,4 +24,10 @@ OBS: As vezes é necessário habilitar long_path no regedit !!!
 [imageio] conda install -c conda-forge imageio
 [gym-atari] conda install -c conda-forge gym-atari
 [imageio-ffmpeg] pip install imageio-ffmpeg
+
+
+
+
+
+
 

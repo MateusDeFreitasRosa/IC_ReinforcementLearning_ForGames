@@ -15,11 +15,12 @@ experiment_params = {
     
     
     'sample_batch_size': 32,
-    'epochs_to_save_results': 2,
+    'epochs_to_save_results': 10,
     'freq_update_nn': 1000, # *
     'frames_skip': 1,
     'down_sample': 2, #
     'episodes': 1000,
+    'freq_save_video': 10,
     
     
     'dirs': {
@@ -31,17 +32,19 @@ experiment_params = {
     
     'prune_image': {
         'top': 35,
-        'bottom': 15,
+        'bottom': 16,
         'right': 7,
         'left': 7
     },
     
     'params_agent': {
         'memory_size': 150000,
-        'learning_rate': .00008,
+        'min_learning_rate': .00008,
+        'max_learning_rate': .001,
+        'epochs_interval_lr': 100,
         'gamma': .99,
-        'exploration_rate': 1.0,
-        'exploration_min': .05,
+        'exploration_rate': 1,
+        'exploration_min': .07,
         'exploration_decay': 1.0e-5,
         'k_frames': 4,        
         

@@ -9,9 +9,9 @@ import gym
 import cv2
 import numpy as np
 from collections import deque
-from tensorflow.keras.models import Sequential
-from tensorflow.keras.layers import Dense, Conv2D, MaxPooling2D, Flatten
-from tensorflow.keras.optimizers import Adam
+from keras.models import Sequential
+from keras.layers import Dense, Conv2D, MaxPooling2D, Flatten
+from keras.optimizers import Adam
 import os
 import random
 import matplotlib.pyplot as plt
@@ -21,7 +21,7 @@ import imageio
 from plan_experiments import experiment_params
 import pandas as pd
 import itertools
-
+from keras import backend as K
 
 from multiprocessing.pool import ThreadPool
 
@@ -93,7 +93,7 @@ TRAIN = True
 OBSERVER = 100
 UPDATE_TARGET_MODEL = experiment_params['freq_update_nn']
 qntUpdate=0
-tamMemoryK = 100 # O tamanho da memoria será esse valor multiplicado por 1000.
+tamMemoryK = experiment_params['params_agent']['memory_size'] # O tamanho da memoria será esse valor multiplicado por 1000.
 
 game = experiment_params['game']
 total_reward_game = []
@@ -106,8 +106,7 @@ current_time_episode = []
 average_loss = []
 average_fps_current_episode = []
 current_exploration = []
-
-resultado = []
+current_lr = []
 
 class Agent(): 
     def __init__(self, state_size, action_size):
@@ -115,7 +114,10 @@ class Agent():
         self.state_size                 =       state_size
         self.action_size                =       action_size
         self.memory                     =       deque(maxlen=experiment_params['params_agent']['memory_size']) if TRAIN else deque(maxlen=5)
-        self.learning_rate              =       experiment_params['params_agent']['learning_rate']
+        self.min_learning_rate          =       experiment_params['params_agent']['min_learning_rate']
+        self.max_learning_rate          =       experiment_params['params_agent']['max_learning_rate']
+        self.epochs_interval_lr         =       experiment_params['params_agent']['epochs_interval_lr']
+        self.learning_rate_decay        =       (self.max_learning_rate - self.min_learning_rate) / self.epochs_interval_lr
         self.gamma                      =       experiment_params['params_agent']['gamma']
         self.exploration_rate           =       experiment_params['params_agent']['exploration_rate']
         self.exploration_min            =       experiment_params['params_agent']['exploration_min']
@@ -126,10 +128,9 @@ class Agent():
         self.brain                      =       self._build_model()
         self.brain_target               =       self._build_model()
         self.freq_update_nn             =       experiment_params['freq_update_nn']
-
+        self.n_trains                   =       0
 
     def _build_model(self):
-        #with tf.device('/gpu:0'):
         # Neural Net for Deep-Q learning Model
         model = Sequential()
             
@@ -151,12 +152,13 @@ class Agent():
             model.add(Dense(nn['neurons'], activation=nn['activation'], kernel_initializer=k_init))
             
         model.add(Dense(self.action_size, activation='linear'))
-        model.compile(loss=huber_loss_mean, optimizer=Adam(lr=self.learning_rate))
+        model.compile(loss=huber_loss_mean, optimizer=Adam(lr=self.max_learning_rate))
             
         model.summary()
         if self.has_load_data():
             model.load_weights(self.weight_backup)
             self.exploration_rate = self.exploration_min
+            self.max_learning_rate = self.min_learning_rate
         return model
     
     
@@ -193,7 +195,6 @@ class Agent():
 
 
     def pack_K_frames(self, sample_batch_size):
-        global resultado
         if len(self.memory) < self.k_frames+2:
             return
         
@@ -216,17 +217,14 @@ class Agent():
             done[k] = d
             action[k] = a
             reward[k] = r
-            
-           
+              
         #State = (32,4,84,84)  -> State Transpose = (32,84,84,4) 
         return np.transpose(state, axes=(0,2,3,1)), action, reward, np.transpose(next_state, axes=(0,2,3,1)), done
         
 
     def replay(self, sample_batch_size):
-       
         if len(self.memory) < sample_batch_size:
             return
-        
         #sample_batch = random.sample(self.memory, sample_batch_size)
         state, action, reward, next_state, done = self.pack_K_frames(sample_batch_size)
         
@@ -261,7 +259,7 @@ class Agent():
             
         if self.exploration_rate > self.exploration_min:
             self.exploration_rate -= self.exploration_decay
-    
+        
         return history, self.exploration_rate
 
     def update_target_model(self, current_frame):
@@ -271,7 +269,17 @@ class Agent():
             qntUpdate+=1
             print('-------------------------UPDATED TARGET MODEL({}) ------------------------------'.format(qntUpdate))
 
-
+    def update_learning_rate(self,):
+        ## Modified 
+        if self.max_learning_rate > self.min_learning_rate:
+            if self.epochs_interval_lr > 0:
+                self.max_learning_rate-=self.learning_rate_decay
+                self.epochs_interval_lr-=1
+                K.set_value(self.brain.optimizer.lr, self.max_learning_rate) # Change learning rate.
+                print('Current Learning rate: {}'.format(K.eval(breakout.agent.brain.optimizer.lr)))
+                
+import json          
+            
 class Breakout():
     
     def __init__(self):
@@ -297,19 +305,21 @@ class Breakout():
         self.epochs_to_save_results     =              experiment_params['epochs_to_save_results']
         self.frames_in_atual_episode    =              0
         self.seconds_in_atual_episode   =              0
-        
+        self.freq_save_video            =              experiment_params['freq_save_video']
+
         self.initialize_dirs() # If not exist the dirs, this function create.
     
   
     def initialize_dirs(self):
         for keys, values in experiment_params['dirs'].items():
-            
             if not os.path.isdir(values):
                 os.makedirs(values)
+            with open(experiment_params['dirs']['dir_annotations_experiments']+'plan_experiments.txt', 'w') as file:
+                 file.write(json.dumps(experiment_params))
         
     def reset_results(self):
         global reward_current_episode, train_current_episode, current_time_episode, average_loss, \
-        average_fps_current_episode, current_exploration
+        average_fps_current_episode, current_exploration, current_lr
         
         reward_current_episode = []
         train_current_episode = []
@@ -317,12 +327,13 @@ class Breakout():
         average_loss = []
         average_fps_current_episode = []
         current_exploration = []
+        current_lr = []
         
         
-    def add_new_result(self, reward, train, time, loss, exploration, fps):
+    def add_new_result(self, reward, train, time, loss, exploration, fps, lr):
         
         global reward_current_episode, train_current_episode, current_time_episode, average_loss,  \
-        average_fps_current_episode, current_exploration
+        average_fps_current_episode, current_exploration, current_lr
         
         reward_current_episode.append(reward)
         train_current_episode.append(train)
@@ -330,6 +341,7 @@ class Breakout():
         average_loss.append(loss),
         current_exploration.append(exploration)
         average_fps_current_episode.append(fps)
+        current_lr.append(lr)
 
         
         if len(reward_current_episode) >= self.epochs_to_save_results:
@@ -339,7 +351,7 @@ class Breakout():
         
     def save_results(self):
        global reward_current_episode, train_current_episode, current_time_episode, average_loss, \
-       average_fps_current_episode, current_exploration
+       average_fps_current_episode, current_exploration, current_lr
               
       
        if len(reward_current_episode) <= 0:
@@ -351,7 +363,8 @@ class Breakout():
            'TIME': current_time_episode,
            'LOSS': average_loss,
            'EXPLORATION_RATE': current_exploration,
-           'FPS': average_fps_current_episode
+           'FPS': average_fps_current_episode,
+           'LR': current_lr
        })
        
        df_backup = pd.DataFrame()
@@ -364,11 +377,9 @@ class Breakout():
        self.reset_results()
        
        
-    def save_params(self):
-        with open(experiment_params['dir_annotations_experiments']+'annotations.md', 'w') as f:
-            f.write(experiment_params)
-
-   
+    def to_gray_scale(self, img):
+        return 0.299*img[:,:,0] + 0.587*img[:,:,1] + 0.114*img[:,:,2]
+    
     def restart_chronometer(self):
         self.frames_in_atual_episode=0
         self.seconds_in_atual_episode=0
@@ -376,36 +387,16 @@ class Breakout():
     def get_frames_per_seconds_in_atual_episode(self):
         return int(self.frames_in_atual_episode / (time.time() - self.seconds_in_atual_episode))
     
-    def to_gray_scale(self, img):
-        return 0.299*img[:,:,0] + 0.587*img[:,:,1] + 0.114*img[:,:,2]
-    
-    def down_sample(self, img):
-        return img[::self.down_sample_of,::self.down_sample_of]
-    
-    def preprocess_img(self, img):        
-        new_image = cv2.resize(np.asarray(self.to_gray_scale(self.crop_img(img)) / 255, dtype=np.float32), self.state_size, interpolation=cv2.INTER_AREA)
-        '''plt.imshow(new_image)
-        plt.show()
-        print('Shape: {}'.format(new_image.shape))
-        input()'''
-        return new_image
-        
+   
     def crop_img(self, img):
         #return img[self.crop_on_top: -self.crop_on_bottom, self.crop_on_border:-self.crop_on_border]
-        return img[self.crop_on_top:-self.crop_on_bottom, self.crop_on_left:-self.crop_on_right]
-  
-    def transform_reward(self, reward):
-        return np.sign(reward)
-      
-    def formatTimeBr(time):
-        horas = time/3600
-        minutos = (time%3600)/60
-        segundos = (time%3600)%60
-        
-        return str('{}hr : {}min : {}seg'.format(horas, minutos, segundos))
+        return img[self.crop_on_top:-self.crop_on_bottom, self.crop_on_left:-self.crop_on_right]    
+
+    def preprocess_img(self, img):        
+        return self.to_gray_scale(cv2.resize(self.crop_img(img), (self.state_size[0],self.state_size[0]), interpolation=cv2.INTER_AREA)) / 255
+
     
     def save_image_epoch(self, gif_to_save, epoch, best_current_play=False):
-        
         if best_current_play:
             epoch = str(epoch)+'_best'
         else:
@@ -413,7 +404,7 @@ class Breakout():
         
         if (self.canSave and len(gif_to_save) > 0):
     
-            imageio.mimwrite(experiment_params['dirs']['dir_videos']+epoch+'.mp4', gif_to_save , fps = 100)
+            imageio.mimwrite(experiment_params['dirs']['dir_videos']+epoch+'.mp4', np.multiply(gif_to_save, 255).astype(np.uint8), fps = 100)
             print('Gif Salvo') 
             self.canSave = False
             
@@ -428,8 +419,7 @@ class Breakout():
                 state = self.preprocess_img(state)
                 
                 done = False
-                current_images_episode = []
-                
+                current_images_episode = [] 
                 total_reward=0
                 history_list = []
                 exploration = 1.0
@@ -438,17 +428,16 @@ class Breakout():
                 while not done:
                                         
                     #if i_episodes > 600 or not TRAIN:
-                    #self.env.render()
+                    self.env.render()
                     action = self.agent.act(state)
                     next_state, reward, done, info = self.env.step(action)
+                    next_state = self.preprocess_img(next_state)
                     
                     reward = np.sign(reward)
                     total_reward+=reward
-           
-                    next_state = self.preprocess_img(next_state)
                     
                     current_images_episode.append(next_state)
-                    
+
                     self.agent.remember(state, action, reward, next_state, done)
                     state = next_state
                         
@@ -465,13 +454,13 @@ class Breakout():
                 
                 
                 if TRAIN and self.current_frame > OBSERVER:
-                    if i_episodes % 2 == 0:
+                    if i_episodes % self.freq_save_video == 0:
                         self.canSave=True
                         
                         self.save_image_epoch( current_images_episode, i_episodes)   
                     
                     self.add_new_result(total_reward, (self.current_frame / self.frames_skip), time.time(), 
-                                        np.mean(history_list), exploration, self.get_frames_per_seconds_in_atual_episode())
+                                        np.mean(history_list), exploration, self.get_frames_per_seconds_in_atual_episode(), K.eval(breakout.agent.brain.optimizer.lr))
                    
                     if total_reward > self.best_score and self.current_frame > OBSERVER:
                             self.best_score = total_reward
@@ -479,8 +468,10 @@ class Breakout():
                             self.save_image_epoch(current_images_episode, i_episodes, best_current_play=True)
                             print('Save best current model -> ', end='')
                 current_images_episode = []
-                print("Episode {}# r: {}# Loss: {:.6} # Train: {} # eps: {:.3}# Space: {}% 'fps: {}:".format(i_episodes, total_reward, np.mean(history_list), (self.current_frame / self.frames_skip), exploration, round(((len(self.agent.memory) / (tamMemoryK*1000)) * 100), 2), self.get_frames_per_seconds_in_atual_episode() ))
+                print("Episode {}# r: {}# Loss: {:.6} # Trains: {} # eps: {:.3}# Space: {}% 'fps: {}:".format(i_episodes, total_reward, np.mean(history_list), (self.current_frame / self.frames_skip), exploration, round(((len(self.agent.memory) / (tamMemoryK)) * 100), 2), self.get_frames_per_seconds_in_atual_episode() ))
                 self.restart_chronometer()
+                self.agent.update_learning_rate()
+                
         finally:
             if TRAIN:
                 self.agent.save_model()
