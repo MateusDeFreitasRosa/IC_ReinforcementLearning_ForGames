@@ -93,7 +93,7 @@ TRAIN = True
 OBSERVER = 100
 UPDATE_TARGET_MODEL = experiment_params['freq_update_nn']
 qntUpdate=0
-tamMemoryK = experiment_params['params_agent']['memory_size'] # O tamanho da memoria será esse valor multiplicado por 1000.
+tamMemoryK = experiment_params['params_agent']['memory_size'] # O tamanho da memoria ser� esse valor multiplicado por 1000.
 
 game = experiment_params['game']
 total_reward_game = []
@@ -108,6 +108,7 @@ average_fps_current_episode = []
 current_exploration = []
 current_lr = []
 
+
 class Agent(): 
     def __init__(self, state_size, action_size):
         self.weight_backup              =       experiment_params['dirs']['dir_model']+experiment_params['game']+".h5"
@@ -121,7 +122,8 @@ class Agent():
         self.gamma                      =       experiment_params['params_agent']['gamma']
         self.exploration_rate           =       experiment_params['params_agent']['exploration_rate']
         self.exploration_min            =       experiment_params['params_agent']['exploration_min']
-        self.exploration_decay          =       experiment_params['params_agent']['exploration_decay']
+        self.exploration_decay          =       0 # A variável irá se atualizar.
+        self.exploration_map            =       experiment_params['params_agent']['exploration_map']
         self.k_frames                   =       experiment_params['params_agent']['k_frames']
         self.frame_height               =       self.state_size[0]
         self.frame_width                =       self.state_size[1]
@@ -129,11 +131,18 @@ class Agent():
         self.brain_target               =       self._build_model()
         self.freq_update_nn             =       experiment_params['freq_update_nn']
         self.n_trains                   =       0
+        
+        self.update_exploration_decay(0)
 
+    def update_exploration_decay(self, frame):
+        for frame_limit, eps_limit in self.exploration_map:
+            if frame <= frame_limit:
+               self.exploration_decay =  (eps_limit[0] - eps_limit[1]) / frame_limit
+               break
+        
     def _build_model(self):
         # Neural Net for Deep-Q learning Model
         model = Sequential()
-            
         
         ## Create structure of convolucional network.
         structure_convolucional = experiment_params['structure_neural_network']['conv']
@@ -235,8 +244,8 @@ class Agent():
         #print('Done: {}'.format(done.shape))
         #input()
         #target = reward
-        predicted = self.brain_target.predict(next_state) #Previsão proximo estado.
-        target_f = self.brain.predict(state) #Previsão estado atual.
+        predicted = self.brain_target.predict(next_state) #Previs�o proximo estado.
+        target_f = self.brain.predict(state) #Previs�o estado atual.
         #print('Predicted: {}'.format(predicted))
         #print('Predicted[0]: {}'.format(predicted[2]))
         #print('Predicted Max: {}'.format(np.amax(predicted)))
@@ -431,13 +440,14 @@ class Breakout():
                     self.env.render()
                     action = self.agent.act(state)
                     next_state, reward, done, info = self.env.step(action)
-                    next_state = self.preprocess_img(next_state)
                     
                     reward = np.sign(reward)
                     total_reward+=reward
+                    next_state = self.preprocess_img(next_state)
                     
                     current_images_episode.append(next_state)
 
+                    
                     self.agent.remember(state, action, reward, next_state, done)
                     state = next_state
                         
@@ -454,6 +464,7 @@ class Breakout():
                 
                 
                 if TRAIN and self.current_frame > OBSERVER:
+                    self.agent.update_exploration_decay(self.current_frame)
                     if i_episodes % self.freq_save_video == 0:
                         self.canSave=True
                         

@@ -5,11 +5,11 @@ Created on Thu Dec  2 18:09:49 2021
 @author: Mateus
 """
 experiment_params = {
-    'version': '0.0.0',
-    'game': 'Pong-v0',
+    'version': '0.0.2',
+    'game': 'Skiing-v0',
     'description': '''
     
-    ..
+   
     
     ''',
     
@@ -19,35 +19,38 @@ experiment_params = {
     'freq_update_nn': 1000, # *
     'frames_skip': 1,
     'down_sample': 2, #
-    'episodes': 1000,
+    'episodes': 100000,
     'freq_save_video': 10,
     
     
     'dirs': {
-        'dir_results': 'experiments/Pong/',
-        'dir_annotations_experiments': 'experiments/Pong/',
-        'dir_videos': 'experiments/Pong/movies/',
-        'dir_model': 'experiments/Pong/model/'
+        'dir_results': 'experiments/Skiing-v2/',
+        'dir_annotations_experiments': 'experiments/Skiing-v2/',
+        'dir_videos': 'experiments/Skiing-v2/movies/',
+        'dir_model': 'experiments/Skiing-v2/model/'
     },
     
     'prune_image': {
-        'top': 35,
-        'bottom': 16,
-        'right': 7,
-        'left': 7
+        'top': 57,  
+        'bottom': 1,
+        'right': 8,
+        'left': 8
     },
     
     'params_agent': {
-        'memory_size': 150000,
-        'min_learning_rate': .00008,
-        'max_learning_rate': .001,
-        'epochs_interval_lr': 100,
+        'memory_size': 500000,
+        'min_learning_rate': .0001,
+        'max_learning_rate': .00001,
+        'epochs_interval_lr': 300,
         'gamma': .99,
         'exploration_rate': 1,
-        'exploration_min': .07,
-        'exploration_decay': 1.0e-5,
-        'k_frames': 4,        
-        
+        'exploration_min': .06,
+        'exploration_map': [
+                (2500000, (1,.3)), 
+                (3500000, (.3,.1)), 
+                (5000000, (.1,.06))
+            ],
+        'k_frames': 4,
     },
     
     # Estrutura da Rede Neural Convolucional.
