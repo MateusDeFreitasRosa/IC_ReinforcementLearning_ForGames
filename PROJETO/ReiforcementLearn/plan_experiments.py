@@ -5,12 +5,11 @@ Created on Thu Dec  2 18:09:49 2021
 @author: Mateus
 """
 experiment_params = {
-    'version': '0.0.2',
-    'game': 'Skiing-v0',
+    'version': '0.0.1',
+    'game': 'Pong-v0',
     'description': '''
-    
-   
-    
+        Experimento base utilizando a mesma topologia de rede neural usada por Minih, porém utilizando
+        diferentes e melhores parametros que encontramos.
     ''',
     
     
@@ -18,39 +17,40 @@ experiment_params = {
     'epochs_to_save_results': 10,
     'freq_update_nn': 1000, # *
     'frames_skip': 1,
-    'down_sample': 2, #
+    'down_sample': 1, #
     'episodes': 100000,
     'freq_save_video': 10,
     
     
     'dirs': {
-        'dir_results': 'experiments/Skiing-v2/',
-        'dir_annotations_experiments': 'experiments/Skiing-v2/',
-        'dir_videos': 'experiments/Skiing-v2/movies/',
-        'dir_model': 'experiments/Skiing-v2/model/'
+        'dir_results': 'experiments/Pong-useToPaper01/',
+        'dir_annotations_experiments': 'experiments/Pong-useToPaper01/',
+        'dir_videos': 'experiments/Pong-useToPaper01/movies/',
+        'dir_model': 'experiments/Pong-useToPaper01/model/'
     },
     
     'prune_image': {
-        'top': 57,  
-        'bottom': 1,
-        'right': 8,
-        'left': 8
+        'top': 34,  
+        'bottom': 16,
+        'right': 7,
+        'left': 7
     },
     
     'params_agent': {
-        'memory_size': 500000,
-        'min_learning_rate': .0001,
-        'max_learning_rate': .00001,
-        'epochs_interval_lr': 300,
+        'memory_size': 200000,
+        'min_learning_rate': .00025 ,
+        'max_learning_rate': .00008,
+        'epochs_interval_lr': 150,
         'gamma': .99,
         'exploration_rate': 1,
-        'exploration_min': .06,
+        'exploration_min': .07,
         'exploration_map': [
-                (2500000, (1,.3)), 
-                (3500000, (.3,.1)), 
-                (5000000, (.1,.06))
-            ],
+                (200000, (1,.6)), 
+                (450000, (.6,.07)), 
+                #(5000000, (.1,.06))
+            ], # Esta variável diz como a variável de exploração deve ser atualizada. 
         'k_frames': 4,
+        'initial_start_size': 5000
     },
     
     # Estrutura da Rede Neural Convolucional.
@@ -90,12 +90,12 @@ experiment_params = {
                 'neurons': 256,
                 'activation': 'relu',
                 'kernel_initializer': 'he_uniform'
-            },
-            {
+           },
+           {
                 'neurons': 64,
                 'activation': 'relu',
                 'kernel_initializer': 'he_uniform'
-            }
+           }
         ]
         
     }
