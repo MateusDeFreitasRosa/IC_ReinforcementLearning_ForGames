@@ -1,13 +1,21 @@
-PROJETO/ReiforcementLearn/Images/*
-PROJETO/ReiforcementLearn/breakout_dataModel.h5
+PROJETO/ReinforcementLearn/Images/*
+PROJETO/ReinforcementLearn/breakout_dataModel.h5
 PROJETO/AMBIENTE_TESTE/script_python/process/*
 PROJETO/AMBIENTE_TESTE/script_python/__pycache__/*
-PROJETO/ReiforcementLearn/currentProcessICMinih/*
-PROJETO/ReiforcementLearn/Graphs/*
+PROJETO/AMBIENTE_TESTE/games/*
+PROJETO/AMBIENTE_TESTE/FCEUX/*
+PROJETO/AMBIENTE_TESTE/scripts_lua/fceux_listener.lua
+PROJETO/ReinforcementLearn/currentProcessICMinih/*
+PROJETO/ReinforcementLearn/Graphs/*
 Documentos/*
 PROJETO/Analitycs/*
-PROJETO/ReiforcementLearn/experiments/*
-PROJETO/ReiforcementLearn/.ipynb_checkpoints/*
+PROJETO/ReinforcementLearn/experiments/*
+PROJETO/ReinforcementLearn/.ipynb_checkpoints/*
 Artigos Estudos/*
 PROJETO/aws_experiments/*
-PROJETO/ReiforcementLearn/experiments/*
+PROJETO/ReinforcementLearn/experiments/*
+TCC/*
+Artigos Estudos/*
+PROJETO/ReinforcementLearn_backup/*
+PROJETO/ReinforcementLearn/blobfinder/*
+PROJETO/ReinforcementLearn/Link-DocumentoWord.txt

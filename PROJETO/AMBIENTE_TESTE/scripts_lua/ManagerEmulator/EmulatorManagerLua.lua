@@ -136,7 +136,6 @@ Operation = {
                 joypadControll[params['action']] = true
                 joypad.set(PLAYER_NUMBER, joypadControll)
                 Operation.lastAction=params['action']
-
             end
 
             --local mem = read_memory()
@@ -199,7 +198,7 @@ function main()
     savestate.save(obj)
     while true do
         reciveCommands()
-        --emu.frameadvance(); -- must remove.
+        emu.frameadvance(); -- must remove.
     end
 end
 --gui.register(reciveCommands)
